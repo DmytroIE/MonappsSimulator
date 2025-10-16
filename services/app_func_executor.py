@@ -81,7 +81,7 @@ class AppFuncExecutor:
 
         logger.debug("Update other parameters")
         self.run_post_exec_routine()
-        logger.debug("-----END-----")  # NOTE: --> remove in the 'monapps'
+        logger.debug(">>>>>>>>-----END-----<<<<<<<<<")  # NOTE: --> remove in the 'monapps'
 
     def run_exec_routine(self):
         native_df_qs = self.app.get_native_df_qs()

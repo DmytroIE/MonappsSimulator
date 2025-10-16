@@ -86,18 +86,21 @@ def resample_and_augment_ds_readings(
     start_rts: int,
     end_rts: int,
     aggr_type: DataAggrTypes,
-    is_nodata_period: bool,
+    is_nd_period_open: bool,
     dfr_at_start_ts: DfReading | None = None,
-) -> IndDfReadingMap:
+) -> tuple[IndDfReadingMap, int]:
 
-    print("---resample_and_augment_ds_readings starts...")
+    print("OX-OX-OX-O---resample_and_augment_ds_readings starts...")
     print(
         f"---start_rts is '{datetime.fromtimestamp(start_rts / 1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}' or {start_rts} ms"
     )
     print(
         f"---end_ts is '{datetime.fromtimestamp(end_rts / 1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}' or {end_rts} ms"
     )
-    print(f"---is_nodata_period on enter is '{is_nodata_period}'")
+    print(f"---is_nd_period_open on enter is '{is_nd_period_open}'")
+
+    if start_rts >= end_rts:
+        return {}, start_rts
 
     df_reading_map = {}
     aggr_func = aggr_map[aggr_type]
@@ -112,10 +115,7 @@ def resample_and_augment_ds_readings(
         if isinstance(r, DsReading):
             last_df_reading_rts = rts  # this value can be changed later
 
-    # if df.aug_policy != AugmentationPolicy.TILL_NOW and last_df_reading_rts is None:
-    #     return {}
-
-    # For LAST + TILL_NOW we need the previous value to continue the series
+    # also, we need the previous value to continue the series
     # add this dfr temporarily, it will be removed at the end of the function
     if dfr_at_start_ts is not None:
         df_reading_map[start_rts] = dfr_at_start_ts
@@ -131,10 +131,10 @@ def resample_and_augment_ds_readings(
         arr = df_reading_map.get(rts, None)  # 'arr' is already sorted by time
         if arr is not None:  # if 'arr' is not None, then it contains at least one item: dsr or ndm
             if isinstance(arr[-1], NoDataMarker):  # if the last item in 'arr' is NoDataMarker
-                is_nodata_period = True
+                is_nd_period_open = True
                 last_nd_marker_rts = rts  # rounded ts, will be needed further
             else:
-                is_nodata_period = False  # new ds readings after an nd_marker "destroy" nodata period
+                is_nd_period_open = False  # new ds readings after an nd_marker "destroy" nodata period
 
             new_arr = [r for r in arr if isinstance(r, DsReading)]
             aggr_value = aggr_func(new_arr)  # if 'new_arr' is empty, 'agg_func' will return None
@@ -147,7 +147,7 @@ def resample_and_augment_ds_readings(
                 del df_reading_map[rts]
 
         else:
-            if not is_nodata_period:
+            if not is_nd_period_open:
                 dfr = None
                 if aggr_type == DataAggrTypes.SUM:
                     dfr = DfReading(time=rts, value=0, datafeed=df, restored=True)
@@ -165,40 +165,15 @@ def resample_and_augment_ds_readings(
     if df_reading_map.get(start_rts, None) is not None:
         del df_reading_map[start_rts]
 
-    # injection of 'not_to_use' property
-    print("---Injecting 'not_to_use' property")
-    print(f"---is_nodata_period in the end is '{is_nodata_period}'")
-    print(f"---df_reading_map after augmentation: {df_reading_map}")
-    if df.aug_policy == AugmentationPolicy.TILL_LAST_DF_READING:  # standard approach - the last dfr will be UNCLOSED
-        print("---TILL LAST")
-        if last_df_reading_rts is not None:
-            df_reading_map[last_df_reading_rts].not_to_use = NotToUseDfrTypes.UNCLOSED
-    elif df.aug_policy == AugmentationPolicy.TILL_NOW:
-        print("---TILL NOW")
-        if (
-            # 'no_data_period' after the previous cycle will show if the last element was a nodata marker
-            is_nodata_period  # it means than 'last_nd_marker_rts' is not None
-            and last_nd_marker_rts is not None  # so, this line is only for the linter
-        ):
-            print("---nodata_marker at the end")
-            # in this case, there will be no df readings with 'not_to_use = UNCLOSED'
-
-            if end_rts > last_nd_marker_rts:
-                rts_until_dfrs_to_be_saved = last_nd_marker_rts
-            else:
-                rts_until_dfrs_to_be_saved = last_nd_marker_rts - time_resample
-
-            print(f"---rts_until_df_readings_to_be_saved: {rts_until_dfrs_to_be_saved}")
-            df_reading_map = {rts: df_reading_map[rts] for rts in df_reading_map if rts <= rts_until_dfrs_to_be_saved}
-        else:
-            print("---standard ds reading at the end, add UNCLOSED")
-            if last_df_reading_rts is not None:
-                df_reading_map[last_df_reading_rts].not_to_use = NotToUseDfrTypes.UNCLOSED
-    else:
-        raise ValueError(f"Augmentation policy {df.aug_policy} is not supported")
+    # we assume that the last bin is always unclosed
+    if df_reading_map.get(end_rts, None) is not None:
+        del df_reading_map[end_rts]
+    # and regardless of whether there is a dfr at 'end_rts' or not
+    # we shift 'rts_to_start_with_next_time' to the penultimate grid count
+    rts_to_start_with_next_time = end_rts - time_resample
 
     print(f"---final df_reading_map: {df_reading_map}")
-    return df_reading_map
+    return df_reading_map, rts_to_start_with_next_time
 
 
 # For 'continuous + AVG' datastreams
