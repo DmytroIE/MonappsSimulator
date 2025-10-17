@@ -88,9 +88,9 @@ def resample_and_augment_ds_readings(
     aggr_type: DataAggrTypes,
     is_nd_period_open: bool,
     dfr_at_start_ts: DfReading | None = None,
-) -> tuple[IndDfReadingMap, int]:
+) -> IndDfReadingMap:
 
-    print("OX-OX-OX-O---resample_and_augment_ds_readings starts...")
+    print("-------------OX-OX-OX-O---resample_and_augment_ds_readings starts...")
     print(
         f"---start_rts is '{datetime.fromtimestamp(start_rts / 1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}' or {start_rts} ms"
     )
@@ -100,20 +100,17 @@ def resample_and_augment_ds_readings(
     print(f"---is_nd_period_open on enter is '{is_nd_period_open}'")
 
     if start_rts >= end_rts:
-        return {}, start_rts
+        return {}
 
     df_reading_map = {}
     aggr_func = aggr_map[aggr_type]
 
-    last_df_reading_rts = None
     for r in sorted_dsrs_and_ndms:
         rts = ceil_timestamp(r.time, time_resample)
         if rts not in df_reading_map:
             df_reading_map[rts] = []
 
         df_reading_map[rts].append(r)
-        if isinstance(r, DsReading):
-            last_df_reading_rts = rts  # this value can be changed later
 
     # also, we need the previous value to continue the series
     # add this dfr temporarily, it will be removed at the end of the function
@@ -124,15 +121,11 @@ def resample_and_augment_ds_readings(
 
     grid = create_grid(start_rts + time_resample, end_rts, time_resample)
 
-    last_df_reading_rts = None
-    last_nd_marker_rts = None
-
     for rts in grid:
         arr = df_reading_map.get(rts, None)  # 'arr' is already sorted by time
         if arr is not None:  # if 'arr' is not None, then it contains at least one item: dsr or ndm
             if isinstance(arr[-1], NoDataMarker):  # if the last item in 'arr' is NoDataMarker
                 is_nd_period_open = True
-                last_nd_marker_rts = rts  # rounded ts, will be needed further
             else:
                 is_nd_period_open = False  # new ds readings after an nd_marker "destroy" nodata period
 
@@ -142,7 +135,6 @@ def resample_and_augment_ds_readings(
             if aggr_value is not None:
                 dfr = DfReading(time=rts, value=aggr_value, datafeed=df, restored=False)
                 df_reading_map[rts] = dfr
-                last_df_reading_rts = rts
             else:  # only nodata marker in 'arr'
                 del df_reading_map[rts]
 
@@ -159,7 +151,6 @@ def resample_and_augment_ds_readings(
                     raise ValueError(f"Unknown augmentation type for {aggr_type}")
                 if dfr is not None:
                     df_reading_map[rts] = dfr
-                    last_df_reading_rts = rts
 
     # remove the temporarily added dfr from the previous period
     if df_reading_map.get(start_rts, None) is not None:
@@ -168,12 +159,9 @@ def resample_and_augment_ds_readings(
     # we assume that the last bin is always unclosed
     if df_reading_map.get(end_rts, None) is not None:
         del df_reading_map[end_rts]
-    # and regardless of whether there is a dfr at 'end_rts' or not
-    # we shift 'rts_to_start_with_next_time' to the penultimate grid count
-    rts_to_start_with_next_time = end_rts - time_resample
 
     print(f"---final df_reading_map: {df_reading_map}")
-    return df_reading_map, rts_to_start_with_next_time
+    return df_reading_map
 
 
 # For 'continuous + AVG' datastreams

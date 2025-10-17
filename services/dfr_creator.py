@@ -36,10 +36,10 @@ class DfrCreator:
         self.ds = self.df.datastream
 
         self.is_catching_up = False
-        self.last_dsr = None
-        self.last_ndm = None
-        self.is_nd_period_open_after = False  # after batch processing
-        self.rts_to_start_with_next_time = None
+        # self.last_dsr = None
+        # self.last_ndm = None
+        # self.is_nd_period_open_after = False  # after batch processing
+        # self.rts_to_start_with_next_time = None
 
     def execute(self) -> None:  # will be wrapped with transaction.atomic
         self.now_ts = create_now_ts_ms()
@@ -119,6 +119,11 @@ class DfrCreator:
             if first_dsr_after_start_rts is not None and (
                 self.is_nd_period_open
                 or (self.df.data_type.agg_type == DataAggrTypes.LAST and last_dsr_before_start_rts is None)
+                or (
+                    first_ndm_after_start_rts is not None
+                    and ceil_timestamp(first_ndm_after_start_rts.time - self.df.time_resample, self.df.time_resample)
+                    == self.start_rts
+                )
             ):
                 # shift 'start_rts' right before the first ds reading to omit 'empty' periods
                 self.start_rts = ceil_timestamp(
@@ -131,21 +136,22 @@ class DfrCreator:
         return True
 
     def calc_end_rts(self) -> bool:
-        self.last_dsr = (
-            DsReading.objects.filter(datastream__id=self.ds.pk, time__gt=self.start_rts).order_by("time").last()
-        )
-
+        last_dsr = DsReading.objects.filter(datastream__id=self.ds.pk, time__gt=self.start_rts).order_by("time").last()
         if self.ds.is_rbe and self.df.is_aug_on and self.df.aug_policy == AugmentationPolicy.TILL_NOW:
-            # for 'rbe' with TILL_NOW the initial value of 'self.end_rts' is
             self.end_rts = ceil_timestamp(self.now_ts - self.ds.till_now_margin, self.df.time_resample)
+            last_ndm = (
+                NoDataMarker.objects.filter(datastream__id=self.ds.pk, time__gt=self.start_rts).order_by("time").last()
+            )
+            if last_ndm is not None and (last_dsr is None or last_dsr.time <= last_ndm.time):
+                self.end_rts = min(self.end_rts, ceil_timestamp(last_ndm.time, self.df.time_resample))
         else:
             # for other datastreams we need at least one ds reading
-            if self.last_dsr is None:
+            if last_dsr is None:
                 # It means that there are no ds readings at all,
                 # which may happen at the beginning.
                 return False
             else:
-                self.end_rts = ceil_timestamp(self.last_dsr.time, self.df.time_resample)
+                self.end_rts = ceil_timestamp(last_dsr.time, self.df.time_resample)
         return True
 
     def create_ds_reading_batch(self, batch_size: int) -> bool:
@@ -248,7 +254,7 @@ class DfrCreator:
             if not self.ds.is_totalizer:
                 if self.ds.is_rbe and self.df.is_aug_on:
                     sorted_dsrs_and_ndms = self.create_sorted_dsrs_and_ndms_list()
-                    self.df_reading_map, self.rts_to_start_with_next_time = resample_and_augment_ds_readings(
+                    self.df_reading_map = resample_and_augment_ds_readings(
                         sorted_dsrs_and_ndms,
                         self.df,
                         self.df.time_resample,
@@ -268,7 +274,7 @@ class DfrCreator:
                 if self.ds.is_rbe and self.df.is_aug_on:
                     sorted_dsrs_and_ndms = self.create_sorted_dsrs_and_ndms_list()
                     dfr_at_start_ts = self.get_dfr_at_start_ts()
-                    self.df_reading_map, self.rts_to_start_with_next_time = resample_and_augment_ds_readings(
+                    self.df_reading_map = resample_and_augment_ds_readings(
                         sorted_dsrs_and_ndms,
                         self.df,
                         self.df.time_resample,
@@ -312,7 +318,7 @@ class DfrCreator:
             if self.ds.is_rbe and self.df.is_aug_on:
                 sorted_dsrs_and_ndms = self.create_sorted_dsrs_and_ndms_list()
                 dfr_at_start_ts = self.get_dfr_at_start_ts()
-                self.df_reading_map, self.rts_to_start_with_next_time = resample_and_augment_ds_readings(
+                self.df_reading_map = resample_and_augment_ds_readings(
                     sorted_dsrs_and_ndms,
                     self.df,
                     self.df.time_resample,
@@ -343,25 +349,20 @@ class DfrCreator:
         df_readings = []
         df_reading_rtss = sorted(self.df_reading_map)
 
-        if self.rts_to_start_with_next_time is None:  # was not delivered by a function that creates dfrs
-            # then evaluate it here
-            self.rts_to_start_with_next_time = self.start_rts
-            for idx, rts in enumerate(df_reading_rtss):
-                if self.df_reading_map[rts].not_to_use is not None:
-                    if self.df_reading_map[rts].not_to_use == NotToUseDfrTypes.SPLINE_UNCLOSED:
-                        if len(df_reading_rtss) == 1:
-                            # 'df_reading_rtss[idx - 1]' below can give bizarre results if len == 1
-                            pass
-                        else:
-                            self.rts_to_start_with_next_time = df_reading_rtss[idx - 1]
+        self.rts_to_start_with_next_time = self.start_rts
+        for idx, rts in enumerate(df_reading_rtss):
+            if self.df_reading_map[rts].not_to_use is not None:
+                if self.df_reading_map[rts].not_to_use == NotToUseDfrTypes.SPLINE_UNCLOSED:
+                    if len(df_reading_rtss) == 1:
+                        # 'df_reading_rtss[idx - 1]' below can give bizarre results if len == 1
+                        pass
                     else:
-                        self.rts_to_start_with_next_time = rts - self.df.time_resample
-                    break
-                df_readings.append(self.df_reading_map[rts])
-                self.rts_to_start_with_next_time = rts
-        else:  # for augmented dfs
-            for rts in df_reading_rtss:
-                df_readings.append(self.df_reading_map[rts])
+                        self.rts_to_start_with_next_time = df_reading_rtss[idx - 1]
+                else:
+                    self.rts_to_start_with_next_time = rts - self.df.time_resample
+                break
+            df_readings.append(self.df_reading_map[rts])
+            self.rts_to_start_with_next_time = rts
 
         last_saved_dfr_rts = None
         if len(df_readings) > 0:
