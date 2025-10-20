@@ -60,7 +60,6 @@ class AppFuncExecutor:
                 creator.execute()
                 if creator.check_catching_up():
                     is_at_least_one_df_catching_up = True
-                    print(f"!!!!!!!!!!!df {nat_df.pk} {nat_df.name} is catching up")
             except Exception:
                 logger.error(f"Error while creating dfrs for {nat_df.pk} {nat_df.name}, {traceback.format_exc(-1)}")
 
@@ -81,7 +80,7 @@ class AppFuncExecutor:
 
         logger.debug("Update other parameters")
         self.run_post_exec_routine()
-        logger.debug(">>>>>>>>-----END-----<<<<<<<<<")  # NOTE: --> remove in the 'monapps'
+        logger.debug("--------------------END--------------------")  # NOTE: --> remove in the 'monapps'
 
     def run_exec_routine(self):
         native_df_qs = self.app.get_native_df_qs()

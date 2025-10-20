@@ -16,6 +16,8 @@ def get_end_rts(
     for df in datafeeds:
 
         last_df_reading_rts_to_use = df.ts_to_start_with
+        # df.ts_to_start_with is not always the ts of the last dfr,
+        # sometimes (after restoration) it can be greater
 
         if last_df_reading_rts_to_use is None or last_df_reading_rts_to_use <= start_rts:
             df_last_rtss.append(start_rts)

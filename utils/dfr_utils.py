@@ -1,13 +1,12 @@
 from scipy.interpolate import PchipInterpolator
 from typing import Sequence
-from datetime import datetime, timezone
 
 from classes.datafeed import Datafeed
 from classes.dsreading import DsReading, NoDataMarker
 from classes.dfreading import DfReading
 
 from common.complex_types import IndDfReadingMap
-from common.constants import DataAggrTypes, NotToUseDfrTypes, AugmentationPolicy
+from common.constants import DataAggrTypes, NotToUseDfrTypes
 from utils.ts_utils import ceil_timestamp, create_grid
 
 
@@ -90,15 +89,6 @@ def resample_and_augment_ds_readings(
     dfr_at_start_ts: DfReading | None = None,
 ) -> IndDfReadingMap:
 
-    print("-------------OX-OX-OX-O---resample_and_augment_ds_readings starts...")
-    print(
-        f"---start_rts is '{datetime.fromtimestamp(start_rts / 1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}' or {start_rts} ms"
-    )
-    print(
-        f"---end_ts is '{datetime.fromtimestamp(end_rts / 1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}' or {end_rts} ms"
-    )
-    print(f"---is_nd_period_open on enter is '{is_nd_period_open}'")
-
     if start_rts >= end_rts:
         return {}
 
@@ -116,8 +106,6 @@ def resample_and_augment_ds_readings(
     # add this dfr temporarily, it will be removed at the end of the function
     if dfr_at_start_ts is not None:
         df_reading_map[start_rts] = dfr_at_start_ts
-
-    print("---Start augmenting...")
 
     grid = create_grid(start_rts + time_resample, end_rts, time_resample)
 
@@ -160,7 +148,6 @@ def resample_and_augment_ds_readings(
     if df_reading_map.get(end_rts, None) is not None:
         del df_reading_map[end_rts]
 
-    print(f"---final df_reading_map: {df_reading_map}")
     return df_reading_map
 
 
@@ -307,20 +294,25 @@ def restore_totalizer(
     if len(sorted_df_readings) < 2:
         return df_reading_map
 
-    sorted_df_readings[-1].not_to_use = NotToUseDfrTypes.SPLINE_UNCLOSED
+    new_df_reading_map = df_reading_map.copy()  # add native df readings first
+    i = 0
 
-    new_df_reading_map = df_reading_map.copy()
-    i = 1
     while i < len(sorted_df_readings):
-        if i - 1 == len(sorted_df_readings) - 2:
-            # -2: restored df readings between the penultimate
-            # and the last 'native' df readings are not used
+        delta_time = sorted_df_readings[i + 1].time - sorted_df_readings[i].time
+        if i == len(sorted_df_readings) - 2:  # if we got to the penultimate native df reading
+            if delta_time > time_resample:
+                if delta_time <= time_change:
+                    sorted_df_readings[i + 1].not_to_use = NotToUseDfrTypes.SPLINE_UNCLOSED
+                else:
+                    sorted_df_readings[i + 1].not_to_use = NotToUseDfrTypes.SPLINE_NOT_TO_USE
+            else:
+                sorted_df_readings[i + 1].not_to_use = NotToUseDfrTypes.UNCLOSED
             break
-        delta_time = sorted_df_readings[i].time - sorted_df_readings[i - 1].time
+
         if delta_time > time_resample and delta_time <= time_change:
-            grid = create_grid(sorted_df_readings[i - 1].time, sorted_df_readings[i].time, time_resample)
-            k = (sorted_df_readings[i].value - sorted_df_readings[i - 1].value) / delta_time
-            b = sorted_df_readings[i - 1].value - k * sorted_df_readings[i - 1].time
+            grid = create_grid(sorted_df_readings[i].time, sorted_df_readings[i + 1].time, time_resample)
+            k = (sorted_df_readings[i + 1].value - sorted_df_readings[i].value) / delta_time
+            b = sorted_df_readings[i].value - k * sorted_df_readings[i].time
             for rts in grid:
                 if rts > start_rts and rts not in new_df_reading_map:
                     new_df_reading_map[rts] = DfReading(time=rts, datafeed=df, value=k * rts + b, restored=True)

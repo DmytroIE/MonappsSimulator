@@ -1,6 +1,5 @@
 from typing import Literal, Any
 from widgets.SignalManager import SignalManager
-from utils.ts_utils import create_now_ts_ms
 
 
 def add_to_app_log(

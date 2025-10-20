@@ -13,12 +13,16 @@ class DataType:
         agg_type: DataAggrTypes = DataAggrTypes.AVG,
         var_type: VariableTypes = VariableTypes.CONTINUOUS,
         category_map: Dict[int, str] = {},
+        is_totalizer: bool = False,
     ) -> None:
 
         self.name = name
         self.agg_type = agg_type
         self.var_type = var_type
         self.category_map = category_map
+
+        # NOTE: works only with agg_type = SUM
+        self.is_totalizer = is_totalizer
 
         DataType.id_counter += 1
         self.id = DataType.id_counter

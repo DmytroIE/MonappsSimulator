@@ -64,7 +64,9 @@ class CursorBar(QFrame):
                         df.save()
                     dlg = QMessageBox(self)
                     dlg.setWindowTitle("Info")
-                    dlg.setText(f"App cursor position has been changed, {new_cursor_ts}\nAlarm log was not cleared, sorry")
+                    dlg.setText(
+                        f"App cursor position has been changed, {new_cursor_ts}\nAlarm log was not cleared, sorry"
+                    )
                     dlg.setIcon(QMessageBox.Icon.Information)
                     dlg.exec()
             except Exception as e:

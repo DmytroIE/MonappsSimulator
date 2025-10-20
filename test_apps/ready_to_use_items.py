@@ -12,6 +12,10 @@ datatype_temp = DataType("Temperature", agg_type=DataAggrTypes.AVG, var_type=Var
 datatype_temp.save()
 datatype_clicks = DataType("Clicks", agg_type=DataAggrTypes.SUM, var_type=VariableTypes.DISCRETE)
 datatype_clicks.save()
+datatype_clicks_total = DataType(
+    "Clicks total", agg_type=DataAggrTypes.SUM, var_type=VariableTypes.DISCRETE, is_totalizer=True
+)
+datatype_clicks_total.save()
 datatype_work_state = DataType(
     "Work state",
     agg_type=DataAggrTypes.LAST,
@@ -37,6 +41,7 @@ status_datatype = DataType(
         StatusTypes.ERROR: "Error",
     },
 )
+status_datatype.save()
 
 curr_state_datatype = DataType(
     CURR_STATE_FIELD_NAME,
@@ -49,3 +54,4 @@ curr_state_datatype = DataType(
         CurrStateTypes.ERROR: "Error",
     },
 )
+curr_state_datatype.save()

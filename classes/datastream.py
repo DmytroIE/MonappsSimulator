@@ -15,7 +15,6 @@ class Datastream:
         data_type: DataType,
         meas_unit: MeasUnit | None = None,
         is_rbe: bool = False,
-        is_totalizer: bool = False,
         max_rate_of_change: float = 1.0,
         max_plausible_value: float = 1000000.0,
         min_plausible_value: float = -1000000.0,
@@ -29,8 +28,6 @@ class Datastream:
         self.is_rbe = is_rbe
         # NOTE: till_now_margin is applicable only for rbe datastreams
         self.till_now_margin = till_now_margin
-        # NOTE: works only with agg_type = SUM
-        self.is_totalizer = is_totalizer
 
         self.time_change = time_change
 

@@ -1,8 +1,5 @@
 import logging
 
-# import traceback
-from datetime import datetime, timezone
-
 from classes.application import Application
 from classes.datafeed import Datafeed
 from classes.dsreading import DsReading, NoDataMarker
@@ -36,10 +33,6 @@ class DfrCreator:
         self.ds = self.df.datastream
 
         self.is_catching_up = False
-        # self.last_dsr = None
-        # self.last_ndm = None
-        # self.is_nd_period_open_after = False  # after batch processing
-        # self.rts_to_start_with_next_time = None
 
     def execute(self) -> None:  # will be wrapped with transaction.atomic
         self.now_ts = create_now_ts_ms()
@@ -73,48 +66,29 @@ class DfrCreator:
         # or 'cursor_ts' - whichever is greater
         # df readings older than 'app.cursor_ts' are not created
         self.start_rts = max(self.app.cursor_ts, self.df.ts_to_start_with)
-        print(
-            f"---initial start_rts is '{datetime.fromtimestamp(self.start_rts / 1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}' or {self.start_rts} ms"
-        )
 
         if self.ds.is_rbe and self.df.is_aug_on:
 
             last_dsr_before_start_rts = (
                 DsReading.objects.filter(datastream__id=self.ds.pk, time__lte=self.start_rts).order_by("time").last()
             )
-            if last_dsr_before_start_rts is not None:
-                print(
-                    f"---last_dsr_before_start_rts ts is '{datetime.fromtimestamp(last_dsr_before_start_rts.time / 1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}' or {last_dsr_before_start_rts.time} ms"
-                )
-            else:
-                print("---last_dsr_before_start_rts is None")
 
             last_ndm_before_start_rts = (
                 NoDataMarker.objects.filter(datastream__id=self.ds.pk, time__lte=self.start_rts).order_by("time").last()
             )
-            if last_ndm_before_start_rts is not None:
-                print(
-                    f"---last_ndm_before_start_rts ts is '{datetime.fromtimestamp(last_ndm_before_start_rts.time / 1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}' or {last_ndm_before_start_rts.time} ms"
-                )
-            else:
-                print("---last_ndm_before_start_rts is None")
 
             self.is_nd_period_open = False
-            # print(f"---no_data_period is {self.is_nd_period_open}")
             if last_ndm_before_start_rts is not None and (
                 last_dsr_before_start_rts is None or last_dsr_before_start_rts.time <= last_ndm_before_start_rts.time
             ):
                 self.is_nd_period_open = True
-            print(f"---initial 'is_nd_period_open' is {self.is_nd_period_open}")
 
             first_dsr_after_start_rts = (
                 DsReading.objects.filter(datastream__id=self.ds.pk, time__gt=self.start_rts).order_by("time").first()
             )
-            print(f"---{first_dsr_after_start_rts=}")
             first_ndm_after_start_rts = (
                 NoDataMarker.objects.filter(datastream__id=self.ds.pk, time__gt=self.start_rts).order_by("time").first()
             )
-            print(f"---{first_ndm_after_start_rts=}")
 
             if first_dsr_after_start_rts is not None and (
                 self.is_nd_period_open
@@ -129,9 +103,6 @@ class DfrCreator:
                 self.start_rts = ceil_timestamp(
                     first_dsr_after_start_rts.time - self.df.time_resample,
                     self.df.time_resample,
-                )
-                print(
-                    f"---shifted start_rts is '{datetime.fromtimestamp(self.start_rts / 1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}' or {self.start_rts} ms"
                 )
         return True
 
@@ -193,8 +164,9 @@ class DfrCreator:
                 return False
 
     def create_df_readings(self):
-        var_type = self.ds.data_type.var_type
-        aggr_type = self.ds.data_type.agg_type
+        var_type = self.df.data_type.var_type
+        aggr_type = self.df.data_type.agg_type
+        is_totalizer = self.df.data_type.is_totalizer
 
         if var_type == VariableTypes.CONTINUOUS and aggr_type == DataAggrTypes.AVG:
             if len(self.ds_readings) == 0:
@@ -251,7 +223,7 @@ class DfrCreator:
         elif (
             var_type == VariableTypes.CONTINUOUS or var_type == VariableTypes.DISCRETE
         ) and aggr_type == DataAggrTypes.SUM:
-            if not self.ds.is_totalizer:
+            if not is_totalizer:
                 if self.ds.is_rbe and self.df.is_aug_on:
                     sorted_dsrs_and_ndms = self.create_sorted_dsrs_and_ndms_list()
                     self.df_reading_map = resample_and_augment_ds_readings(

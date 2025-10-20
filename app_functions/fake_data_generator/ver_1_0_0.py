@@ -91,10 +91,6 @@ def function(
     update_map["cursor_ts"] = end_rts
     update_map["alarm_payload"] = alarm_payload
 
-    print("\n")
-    print(update_map)
-    print("\n")
-
     return derived_df_reading_map, update_map
 
 
