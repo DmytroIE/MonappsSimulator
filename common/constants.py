@@ -36,7 +36,7 @@ class VariableTypes(IntEnum):
     ORDINAL = 4  # categorical
 
 
-class DataAggrTypes(IntEnum):
+class DataAggTypes(IntEnum):
     AVG = 0  # not available for categorical and discrete data
     SUM = 1  # not available for categorical data
     LAST = 2  # can be used for cat. data that represents a certain state

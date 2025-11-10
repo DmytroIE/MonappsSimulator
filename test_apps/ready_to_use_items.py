@@ -1,6 +1,6 @@
 from classes.datatype import DataType, MeasUnit
 from common.constants import (
-    DataAggrTypes,
+    DataAggTypes,
     VariableTypes,
     StatusTypes,
     CurrStateTypes,
@@ -8,17 +8,17 @@ from common.constants import (
     STATUS_FIELD_NAME,
 )
 
-datatype_temp = DataType("Temperature", agg_type=DataAggrTypes.AVG, var_type=VariableTypes.CONTINUOUS)
+datatype_temp = DataType("Temperature", agg_type=DataAggTypes.AVG, var_type=VariableTypes.CONTINUOUS)
 datatype_temp.save()
-datatype_clicks = DataType("Clicks", agg_type=DataAggrTypes.SUM, var_type=VariableTypes.DISCRETE)
+datatype_clicks = DataType("Clicks", agg_type=DataAggTypes.SUM, var_type=VariableTypes.DISCRETE)
 datatype_clicks.save()
 datatype_clicks_total = DataType(
-    "Clicks total", agg_type=DataAggrTypes.SUM, var_type=VariableTypes.DISCRETE, is_totalizer=True
+    "Clicks total", agg_type=DataAggTypes.SUM, var_type=VariableTypes.DISCRETE, is_totalizer=True
 )
 datatype_clicks_total.save()
 datatype_work_state = DataType(
     "Work state",
-    agg_type=DataAggrTypes.LAST,
+    agg_type=DataAggTypes.LAST,
     var_type=VariableTypes.NOMINAL,
     category_map={
         0: "OFF",
@@ -32,7 +32,7 @@ degC_meas_unit.save()
 
 status_datatype = DataType(
     STATUS_FIELD_NAME,
-    agg_type=DataAggrTypes.LAST,
+    agg_type=DataAggTypes.LAST,
     var_type=VariableTypes.DISCRETE,
     category_map={
         StatusTypes.UNDEFINED: "Undefined",
@@ -45,7 +45,7 @@ status_datatype.save()
 
 curr_state_datatype = DataType(
     CURR_STATE_FIELD_NAME,
-    agg_type=DataAggrTypes.LAST,
+    agg_type=DataAggTypes.LAST,
     var_type=VariableTypes.DISCRETE,
     category_map={
         CurrStateTypes.UNDEFINED: "Undefined",

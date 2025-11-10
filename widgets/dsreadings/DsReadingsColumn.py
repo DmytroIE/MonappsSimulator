@@ -125,12 +125,12 @@ class DsReadingsColumn(QFrame):
             NoDataMarker.objects.bulk_create(nd_markers)
             UnusedNoDataMarker.objects.bulk_create(unused_nd_markers)
 
-            # update 'ts_to_start_with' and 'last_reading_ts'
+            # update 'ts_to_start_with' and 'last_valid_reading_ts'
             ts_to_start_with = max(find_max_ts(ds_readings), find_max_ts(nd_markers))
             set_attr_if_cond(ts_to_start_with, ">", self._ds, "ts_to_start_with")
 
-            last_reading_ts = find_max_ts(ds_readings)  # ds_readings - only valid readings
-            set_attr_if_cond(last_reading_ts, ">", self._ds, "last_reading_ts")
+            last_valid_reading_ts = find_max_ts(ds_readings)  # ds_readings - only valid readings
+            set_attr_if_cond(last_valid_reading_ts, ">", self._ds, "last_valid_reading_ts")
 
             SignalManager.update_graph.emit()
 
@@ -192,12 +192,12 @@ class DsReadingsColumn(QFrame):
                     NoDataMarker.objects.bulk_create(nd_markers)
                     UnusedNoDataMarker.objects.bulk_create(unused_nd_markers)
 
-                    # update 'ts_to_start_with' and 'last_reading_ts'
+                    # update 'ts_to_start_with' and 'last_valid_reading_ts'
                     ts_to_start_with = max(find_max_ts(ds_readings), find_max_ts(nd_markers))
                     set_attr_if_cond(ts_to_start_with, ">", self._ds, "ts_to_start_with")
 
-                    last_reading_ts = find_max_ts(ds_readings)  # ds_readings - only valid readings
-                    set_attr_if_cond(last_reading_ts, ">", self._ds, "last_reading_ts")
+                    last_valid_reading_ts = find_max_ts(ds_readings)  # ds_readings - only valid readings
+                    set_attr_if_cond(last_valid_reading_ts, ">", self._ds, "last_valid_reading_ts")
 
                     SignalManager.update_graph.emit()
 

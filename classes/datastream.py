@@ -36,7 +36,7 @@ class Datastream:
         self.min_plausible_value = min_plausible_value  # should be < max_plausible_value
 
         self.ts_to_start_with = 0
-        self.last_reading_ts: int | None = None
+        self.last_valid_reading_ts: int | None = None
         self.created_ts = create_now_ts_ms()
 
         Datastream.id_counter += 1

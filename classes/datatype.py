@@ -1,6 +1,6 @@
 from typing import Dict
 from classes.object_manager import ObjectManager
-from common.constants import VariableTypes, DataAggrTypes
+from common.constants import VariableTypes, DataAggTypes
 
 
 class DataType:
@@ -10,7 +10,7 @@ class DataType:
     def __init__(
         self,
         name: str,
-        agg_type: DataAggrTypes = DataAggrTypes.AVG,
+        agg_type: DataAggTypes = DataAggTypes.AVG,
         var_type: VariableTypes = VariableTypes.CONTINUOUS,
         category_map: Dict[int, str] = {},
         is_totalizer: bool = False,
