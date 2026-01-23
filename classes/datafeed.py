@@ -4,7 +4,6 @@ from classes.datastream import Datastream
 from classes.datatype import DataType, MeasUnit
 from common.constants import VariableTypes, AugmentationPolicy
 from classes.object_manager import ObjectManager
-from utils.ts_utils import create_now_ts_ms
 
 
 class Datafeed:
@@ -21,6 +20,7 @@ class Datafeed:
         is_rest_on: bool = True,
         is_aug_on: bool = True,
         aug_policy: AugmentationPolicy = AugmentationPolicy.TILL_LAST_DF_READING,
+        time_resample: int | None = None,
     ) -> None:
         self.name = name
         self.data_type = data_type
@@ -34,6 +34,15 @@ class Datafeed:
 
         self.parent = parent
         self.datastream = datastream
+
+        self.db_time_resample = None
+        if datastream is not None and time_resample is not None:
+            # native datafeeds can have 'time_resample' smaller than the app 'time_resample',
+            # but it should be a multiple of the app 'time_resample'
+            modulo = parent.time_resample % time_resample
+            if modulo > 0:
+                raise ValueError("App time resample should be a multiple of the df time resample")
+            self.db_time_resample = time_resample
 
         Datafeed.id_counter += 1
         self.id = Datafeed.id_counter
@@ -51,7 +60,9 @@ class Datafeed:
 
     @property
     def time_resample(self) -> int:
-        return self.parent.time_resample
+        if self.db_time_resample is None:
+            return self.parent.time_resample
+        return self.db_time_resample
 
     def save(self, update_fields=None) -> None:
         Datafeed.objects.add_item(self)

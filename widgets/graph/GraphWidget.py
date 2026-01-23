@@ -19,7 +19,7 @@ from classes.dsreading import (
     NoDataMarker,
 )
 from common.constants import settings, STATUS_FIELD_NAME, CURR_STATE_FIELD_NAME
-from utils.ts_utils import create_grid, ceil_timestamp
+from utils.ts_utils import create_grid, ceil_timestamp, floor_timestamp
 
 matplotlib.use("Qt5Agg")
 
@@ -115,7 +115,6 @@ class GraphWidget(QWidget):
         time_resample = self._app.time_resample
         self._canvas._axes_vals.cla()
         self._canvas._axes_sts.cla()
-        first_grid_count_ts = settings.MAX_TS_MS
 
         y_max = self._sbx_y_max.value()
         y_min = self._sbx_y_min.value()
@@ -142,10 +141,12 @@ class GraphWidget(QWidget):
             if len(dfreadings) > 0:
                 ts = dfreadings[0].time - time_resample
                 if ts < first_grid_count_ts:
-                    first_grid_count_ts = ts
+                    # datafeeds can have 'time_resample' < 'app.time_resample', that's why we use floor_timestamp
+                    first_grid_count_ts = floor_timestamp(ts, time_resample)
                 ts = dfreadings[-1].time
                 if ts > last_grid_count_ts:
-                    last_grid_count_ts = ts
+                    # datafeeds can have 'time_resample' < 'app.time_resample', that's why we use ceil_timestamp
+                    last_grid_count_ts = ceil_timestamp(ts, time_resample)
             elif len(dsreadings) > 0:  # if there are only datastream readings
                 ts = ceil_timestamp(dsreadings[0].time - time_resample, time_resample)
                 if ts < first_grid_count_ts:
