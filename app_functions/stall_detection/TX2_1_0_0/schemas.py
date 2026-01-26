@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, ClassVar
 
 from common.constants import STATUS_FIELD_NAME, CURR_STATE_FIELD_NAME
 
@@ -27,11 +27,18 @@ df_schema = {
 }
 
 
-class AppFuncSettings(BaseModel):
+class AppFuncSettingsModel(BaseModel):
+
+    changeable_fields: ClassVar[set[str]] = {
+        "delta_temp",
+        "temp_in_threshold",
+        "temp_diff_error_threshold",
+    }
+
     delta_temp: float = default_delta_temp
     temp_in_threshold: float = default_temp_in_threshold
-    cs_delay_trans_counts: int = default_cs_delay_trans_counts
     temp_diff_error_threshold: float = default_temp_diff_error_threshold
+    cs_delay_trans_counts: int = default_cs_delay_trans_counts
     undef_cid: CondInitDict = default_undef_cid
     ok_from_warn_cid: CondInitDict = default_ok_from_warn_cid
     warn_cid: CondInitDict = default_warn_cid

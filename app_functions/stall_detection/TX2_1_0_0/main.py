@@ -12,8 +12,9 @@ from utils.alarm_utils import add_to_alarm_payload
 from app_functions.helpers.utils.occ_cluster_list import OccurrenceClusterList
 from app_functions.helpers.automatas.curr_state_type1 import Automata as CsAutomata
 from app_functions.helpers.automatas.status_type1 import Automata as StAutomata
+from app_functions.helpers.utils.app_func_settings_bundle import AppFuncSettingsBundle
 
-from .schemas import AppState, AppFuncSettings
+from .schemas import AppState, AppFuncSettingsModel as AfsModel
 
 logger = logging.getLogger("#stall_TX2_1_0_0")
 
@@ -47,7 +48,9 @@ def function(
     if end_rts > start_rts:  # all datafeed have readings with ts > cursor_ts
 
         # -1- get app settings
-        settings = AppFuncSettings(**app.settings)  # validation and default values
+        settings_bundle = AppFuncSettingsBundle[AfsModel](app.settings, AfsModel)  # validation and default values
+        base_settings = settings_bundle.get_settings()
+
         app_state = AppState(**app.state)
         # -2- Create automatas
         add_to_alarm_payload_part = partial(add_to_alarm_payload, alarm_payload)
@@ -60,17 +63,17 @@ def function(
             add_to_alarm_payload_part,
             "Data is invalid",
             "Stall detected",
-            count_thres=settings.cs_delay_trans_counts,
+            count_thres=base_settings.cs_delay_trans_counts,
         )
         # -2-2- create the status automata
         st_automata_int_state = app_state.st_automata_int_state
         st_automata = StAutomata(
             st_automata_int_state,
             add_to_alarm_payload_part,
-            settings.undef_cid,
-            settings.ok_from_undef_cid,
-            settings.ok_from_warn_cid,
-            settings.warn_cid,
+            base_settings.undef_cid,
+            base_settings.ok_from_undef_cid,
+            base_settings.ok_from_warn_cid,
+            base_settings.warn_cid,
         )
 
         all_occs = OccurrenceClusterList(app_state.all_occs)
@@ -85,6 +88,7 @@ def function(
         for rts in grid:
             alarm_payload[rts] = {}  # NOTE: this is very important, add at least an empty dict for each rts
 
+            settings_valid_from = settings_bundle.get_settings(rts)
             # -6-1- evaluate current state
             line = df_value_map.get(rts, None)
             temp_in = None
@@ -93,10 +97,14 @@ def function(
                 temp_in = line.get(temp_in_df.name, None)
                 temp_out = line.get(temp_out_df.name, None)
 
-            cs_err_flag = temp_in is None or temp_out is None or temp_out - temp_in > settings.temp_diff_error_threshold
-            cs_off_flag = not cs_err_flag and temp_in <= settings.temp_in_threshold
-            cs_ok_flag = not cs_err_flag and temp_in - temp_out <= settings.delta_temp
-            cs_warn_flag = not cs_err_flag and temp_in - temp_out > settings.delta_temp
+            cs_err_flag = (
+                temp_in is None
+                or temp_out is None
+                or temp_out - temp_in > settings_valid_from.temp_diff_error_threshold
+            )
+            cs_off_flag = not cs_err_flag and temp_in <= settings_valid_from.temp_in_threshold
+            cs_ok_flag = not cs_err_flag and temp_in - temp_out <= settings_valid_from.delta_temp
+            cs_warn_flag = not cs_err_flag and temp_in - temp_out > settings_valid_from.delta_temp
 
             # execute CS finite automata
             cs_automata.execute(rts, cs_err_flag, cs_off_flag, cs_ok_flag, cs_warn_flag)
