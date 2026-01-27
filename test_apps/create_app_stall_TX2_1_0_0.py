@@ -41,6 +41,7 @@ app_type.save()
 app_settings = {
     "delta_temp": 10.0,
     "temp_in_threshold": 50.0,
+    "temp_diff_error_threshold": 0.1,
     "cs_delay_trans_counts": 3,
     "undef_cid": {
         "total_occs": 6,
@@ -78,6 +79,12 @@ app_settings = {
         "undef_cond": ">=",
         "num_of_undef_occs": 0,
     },
+    # "changes": {
+    #     "1742480400000": {
+    #             "delta_temp": 15.0,
+    #             "temp_in_threshold": 100.0,
+    #     }
+    # }
 }
 
 app = Application(

@@ -103,8 +103,8 @@ def function(
                 or temp_out - temp_in > settings_valid_from.temp_diff_error_threshold
             )
             cs_off_flag = not cs_err_flag and temp_in <= settings_valid_from.temp_in_threshold
-            cs_ok_flag = not cs_err_flag and temp_in - temp_out <= settings_valid_from.delta_temp
-            cs_warn_flag = not cs_err_flag and temp_in - temp_out > settings_valid_from.delta_temp
+            cs_ok_flag = not cs_err_flag and not cs_off_flag and temp_in - temp_out <= settings_valid_from.delta_temp
+            cs_warn_flag = not cs_err_flag and not cs_off_flag and temp_in - temp_out > settings_valid_from.delta_temp
 
             # execute CS finite automata
             cs_automata.execute(rts, cs_err_flag, cs_off_flag, cs_ok_flag, cs_warn_flag)
