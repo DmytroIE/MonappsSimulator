@@ -103,6 +103,7 @@ df_temp_inlet = Datafeed(
     data_type=datatype_temp,
     meas_unit=degC_meas_unit,
     is_rest_on=True,
+    time_resample=30000,
 )
 df_temp_inlet.save()
 
@@ -113,7 +114,6 @@ df_temp_outlet = Datafeed(
     data_type=datatype_temp,
     meas_unit=degC_meas_unit,
     is_rest_on=True,
-    time_resample=30000,
 )
 df_temp_outlet.save()
 

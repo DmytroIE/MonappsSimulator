@@ -42,8 +42,9 @@ def function(
 
     # get end time
     start_rts = app.cursor_ts
-    num_df_to_process = 4  # 4 is because we use 2 temperature datafeeds + curr_state datafeed + status datafeed
-    end_rts, is_catching_up = get_end_rts(native_df_map.values(), app.time_resample, start_rts, num_df_to_process)
+
+    # 2 is for curr_state datafeed + status datafeed
+    end_rts, is_catching_up = get_end_rts(native_df_map.values(), app.time_resample, start_rts, 2)
 
     if end_rts > start_rts:  # all datafeed have readings with ts > cursor_ts
 

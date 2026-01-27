@@ -70,7 +70,7 @@ class DjangoAppSettings(NamedTuple):  # mocking django 'settings' object
 # MAX_TS_MS = 32503679999999, to be used as something similar to Infinity for timestamps
 MAX_DT = datetime(2999, 12, 31, 23, 59, 59, 999999, tzinfo=timezone.utc)
 settings = DjangoAppSettings(
-    NUM_MAX_DFREADINGS_TO_PROCESS=8,  # deliberately set so low to see how catching up works
+    NUM_MAX_DFREADINGS_TO_PROCESS=16,  # deliberately set so low to see how catching up works
     NUM_MAX_DSREADINGS_TO_PROCESS=6,  # deliberately set so low to see how catching up works
     MIN_TIME_RESOL_MS=1000,
     MIN_TIME_APP_FUNC_INVOC_MS=60000,
