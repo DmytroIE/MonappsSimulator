@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Optional, ClassVar
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional
 
 from common.constants import STATUS_FIELD_NAME, CURR_STATE_FIELD_NAME
 
@@ -29,20 +29,50 @@ df_schema = {
 
 class AppFuncSettingsModel(BaseModel):
 
-    changeable_fields: ClassVar[set[str]] = {
-        "delta_temp",
-        "temp_in_threshold",
-        "temp_diff_error_threshold",
-    }
+    model_config = ConfigDict(title="'Stall detection TX2 1.0.0' app function settings")
 
-    delta_temp: float = default_delta_temp
-    temp_in_threshold: float = default_temp_in_threshold
-    temp_diff_error_threshold: float = default_temp_diff_error_threshold
-    cs_delay_trans_counts: int = default_cs_delay_trans_counts
-    undef_cid: CondInitDict = default_undef_cid
-    ok_from_warn_cid: CondInitDict = default_ok_from_warn_cid
-    warn_cid: CondInitDict = default_warn_cid
-    ok_from_undef_cid: CondInitDict = default_ok_from_undef_cid
+    delta_temp: float = Field(
+        title="Delta T",
+        default=default_delta_temp,
+        ge=0.0,
+        changeable=True,
+        description="Temperature difference between inlet and outlet considered a stall condition",
+    )
+    temp_in_threshold: float = Field(
+        title="ON/OFF threshold",
+        default=default_temp_in_threshold,
+        changeable=True,
+        description="Inlet temperature ON/OFF threshold",
+    )
+    temp_diff_error_threshold: float = Field(
+        title="T error threshold",
+        default=default_temp_diff_error_threshold,
+        ge=0.0,
+        changeable=True,
+        description="Difference between outlet and inlet temperature considered an error",
+    )
+    cs_delay_trans_counts: int = Field(
+        title="CS delay trans counts",
+        default=default_cs_delay_trans_counts,
+        ge=0,
+        changeable=False,
+        description="""Delay between the occurrence of an event and the transition to \
+a new current state expressed in numbers of the application 'time_resample'""",
+    )
+    undef_cid: CondInitDict = Field(
+        default=default_undef_cid, changeable=False, title="""Condition for switching to UNDEFINED status"""
+    )
+    ok_from_warn_cid: CondInitDict = Field(
+        default=default_ok_from_warn_cid, changeable=False, title="""Condition for switching from WARN to OK status"""
+    )
+    warn_cid: CondInitDict = Field(
+        default=default_warn_cid, changeable=False, title="""Condition for switching to WARN status"""
+    )
+    ok_from_undef_cid: CondInitDict = Field(
+        default=default_ok_from_undef_cid,
+        changeable=False,
+        title="""Condition for switching from UNDEFINED to OK status""",
+    )
 
 
 class AppState(BaseModel):

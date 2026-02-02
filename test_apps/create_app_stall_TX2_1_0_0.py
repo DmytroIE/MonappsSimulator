@@ -79,12 +79,12 @@ app_settings = {
         "undef_cond": ">=",
         "num_of_undef_occs": 0,
     },
-    # "changes": {
-    #     "1742480400000": {
-    #             "delta_temp": 15.0,
-    #             "temp_in_threshold": 100.0,
-    #     }
-    # }
+    "changes": {
+        "1742480400000": {
+                "delta_temp": 15.0,
+                "temp_in_threshold": 100.0,
+        }
+    }
 }
 
 app = Application(

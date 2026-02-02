@@ -14,10 +14,11 @@ class AppFuncSettingsBundle[T]:
         if len(changes) == 0 or not isinstance(changes, dict):
             return
 
-        if not hasattr(settings_model, "changeable_fields"):
-            return
-
-        changeable_fields = settings_model.changeable_fields
+        changeable_fields = set()
+        for name, info in settings_model.model_fields.items():
+            if isinstance(info.json_schema_extra, dict):
+                if info.json_schema_extra.get("changeable", None):
+                    changeable_fields.add(name)
 
         ranked_changed_settings = {}
         for key, ch_dict in changes.items():

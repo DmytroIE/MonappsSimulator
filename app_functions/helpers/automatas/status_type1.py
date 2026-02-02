@@ -1,6 +1,6 @@
 from enum import IntEnum
 from typing import Callable, Any
-from pydantic import BaseModel, NonNegativeInt, PositiveInt, model_validator
+from pydantic import BaseModel, NonNegativeInt, PositiveInt, Field, model_validator
 from common.constants import StatusTypes
 from app_functions.helpers.utils.eval_cond import eval_cond, CondLiteral
 from app_functions.helpers.utils.occ_cluster_list import OccurrenceClusterList
@@ -14,13 +14,16 @@ class AutomataStates(IntEnum):
 
 
 class CondInitDict(BaseModel):
-    total_occs: PositiveInt
-    ok_cond: CondLiteral
-    num_of_ok_occs: NonNegativeInt
-    warn_cond: CondLiteral
-    num_of_warn_occs: NonNegativeInt
-    undef_cond: CondLiteral
-    num_of_undef_occs: NonNegativeInt
+    total_occs: PositiveInt = Field(
+        title="""Total number of current state readings \
+in the batch required for status evaluation"""
+    )
+    ok_cond: CondLiteral = Field(title="Condition")
+    num_of_ok_occs: NonNegativeInt = Field(title="Number of 'OK current state' readings in the batch")
+    warn_cond: CondLiteral = Field(title="Condition")
+    num_of_warn_occs: NonNegativeInt = Field(title="Number of 'WARNING current state' readings in the batch")
+    undef_cond: CondLiteral = Field(title="Condition")
+    num_of_undef_occs: NonNegativeInt = Field(title="Number of 'UNDEFINED current state' readings in the batch")
 
     @model_validator(mode="after")
     def validate_occurrences_sum(self):
