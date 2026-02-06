@@ -8,7 +8,7 @@ from test_apps.ready_to_use_items import (
     degC_meas_unit,
     datatype_clicks,
     datatype_clicks_total,
-    datatype_work_state,
+    datatype_binary_state,
 )
 
 
@@ -36,7 +36,7 @@ ds_clicks_tot_1.save()
 
 ds_pump_state_1 = Datastream(
     name="Pump state 1",
-    data_type=datatype_work_state,
+    data_type=datatype_binary_state,
     meas_unit=None,
     is_rbe=True,
     max_plausible_value=1,
@@ -98,7 +98,7 @@ df_pump_state = Datafeed(
     name="Pump state",
     parent=app,
     datastream=ds_pump_state_1,
-    data_type=datatype_work_state,
+    data_type=datatype_binary_state,
     meas_unit=None,
     is_aug_on=True,
     aug_policy=AugmentationPolicy.TILL_NOW,
@@ -114,3 +114,10 @@ df_temp = Datafeed(
     is_rest_on=True,
 )
 df_temp.save()
+
+graph_settings = {
+    "y_min": 0,
+    "y_max": 10,
+    "num_grid_counts": 50,
+    "time_unit": "1 min",
+}

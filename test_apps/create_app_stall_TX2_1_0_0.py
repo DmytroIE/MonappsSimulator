@@ -133,3 +133,10 @@ df_status = Datafeed(
     meas_unit=None,
 )
 df_status.save()
+
+graph_settings = {
+    "y_min": 50,
+    "y_max": 150,
+    "num_grid_counts": 100,
+    "time_unit": "1 min",
+}

@@ -16,7 +16,7 @@ from utils.update_utils import set_attr_if_cond
 from services.alarm_log import add_to_alarm_log
 from services.app_log import add_to_app_log
 
-logger = logging.getLogger("#app_func_executor")
+logger = logging.getLogger("#appf_exec")
 
 
 class AppFuncExecutor:

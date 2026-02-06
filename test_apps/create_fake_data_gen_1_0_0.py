@@ -50,3 +50,10 @@ df_status = Datafeed(
     meas_unit=None,
 )
 df_status.save()
+
+graph_settings = {
+    "y_min": 0,
+    "y_max": 10,
+    "num_grid_counts": 50,
+    "time_unit": "1 min",
+}

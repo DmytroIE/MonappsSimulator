@@ -6,7 +6,7 @@ from PySide6 import QtWidgets
 from PySide6.QtCore import QLocale
 
 from widgets.MainWidget import MainWidget
-from create_app import app
+from create_app import app, graph_settings
 
 LOGGING = {
     "version": 1,
@@ -20,7 +20,7 @@ LOGGING = {
         },
     },
     "formatters": {
-        "simple": {"format": "|%(levelname)s|\t|%(asctime)s|\t|%(module)s|\t'%(message)s'"},
+        "simple": {"format": "|%(levelname)s|\t|%(asctime)s|\t|%(name)s|\t'%(message)s'"},
     },
     "filters": {
         "OnlyLocalModulesFilter": {
@@ -52,6 +52,7 @@ if __name__ == "__main__":
     q_app = QtWidgets.QApplication(sys.argv)
     q_app.last_path = "/home"
     q_app.app = app
+    q_app.graph_settings = graph_settings
     window = MainWindow()
     window.show()
     sys.exit(q_app.exec())

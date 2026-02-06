@@ -35,14 +35,13 @@ class Datafeed:
         self.parent = parent
         self.datastream = datastream
 
-        self.db_time_resample = None
-        if datastream is not None and time_resample is not None:
-            # native datafeeds can have 'time_resample' smaller than the app 'time_resample',
-            # but it should be a multiple of the app 'time_resample'
+        if time_resample is not None:
+            # datafeeds can have 'time_resample' smaller than the app 'time_resample',
+            # but it should be a divisor of the app 'time_resample'
             modulo = parent.time_resample % time_resample
             if modulo > 0:
                 raise ValueError("App time resample should be a multiple of the df time resample")
-            self.db_time_resample = time_resample
+        self.db_time_resample = time_resample
 
         Datafeed.id_counter += 1
         self.id = Datafeed.id_counter
