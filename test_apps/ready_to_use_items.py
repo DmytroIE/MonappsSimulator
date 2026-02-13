@@ -56,7 +56,7 @@ curr_state_datatype = DataType(
 )
 curr_state_datatype.save()
 
-datatype_mass = DataType("Mass total", agg_type=DataAggTypes.SUM, var_type=VariableTypes.CONTINUOUS, is_totalizer=False)
+datatype_mass = DataType("Mass", agg_type=DataAggTypes.SUM, var_type=VariableTypes.CONTINUOUS, is_totalizer=False)
 datatype_mass.save()
 
 datatype_mass_total = DataType(

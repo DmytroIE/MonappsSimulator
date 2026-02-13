@@ -43,15 +43,15 @@ class AppWidget(QWidget):
             dlg.setIcon(QMessageBox.Icon.Critical)
             dlg.exec()
             return
-        app_func = app_func_cluster.get(self._app.func_version)
-        if app_func is None:
+        app_func_bundle = app_func_cluster.get(self._app.func_version)
+        if app_func_bundle is None:
             dlg = QMessageBox(self)
             dlg.setWindowTitle("Error")
             dlg.setText(f"No such app function version {self._app.func_version}")
             dlg.setIcon(QMessageBox.Icon.Critical)
             dlg.exec()
             return
-        app_func = app_func["function"]
+        app_func = app_func_bundle["function"]
 
         AppFuncExecutor(self._app, app_func).execute()
 

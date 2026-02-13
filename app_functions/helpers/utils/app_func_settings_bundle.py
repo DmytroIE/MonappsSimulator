@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ValidationError
-from typing import ClassVar, TypeVar, Type
+from typing import TypeVar, Type
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -51,33 +51,3 @@ class AppFuncSettingsBundle[T]:
                 else:
                     break
         return settings
-
-
-if __name__ == "__main__":
-
-    class AfsModel(BaseModel):
-        changeable_fields: ClassVar[list[str]] = ["a"]
-
-        a: int
-        b: int
-        c: int
-
-    ob = AppFuncSettingsBundle(
-        {
-            "a": 1,
-            "b": 2,
-            "c": 3,
-            "changes": {
-                "2234": {"a": 4, "b": 5, "c": 6},
-                "aaa": {"bbb": "ccc"},
-                "1456": {"a": 25, "c": "fff"},
-                "3333": {"a": "g"},
-            },
-        },
-        AfsModel,
-    )
-    print(ob)
-    print(ob.get_settings())
-    print(ob.get_settings(1000))
-    print(ob.get_settings(2000))
-    print(ob.get_settings(3000))

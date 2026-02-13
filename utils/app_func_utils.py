@@ -71,6 +71,6 @@ def get_df_value_map(datafeeds: Iterable[Datafeed], start_rts: int, end_rts: int
                 df_value_map[dfr.time] = {}
             df_value_map[dfr.time][df.name] = dfr.value
 
-        df_value_map = dict(sorted(df_value_map.items()))
+    df_value_map = dict(sorted(df_value_map.items()))
 
     return df_value_map

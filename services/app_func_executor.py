@@ -71,12 +71,14 @@ class AppFuncExecutor:
                 logger.debug("Starting app function")
                 self.run_exec_routine()
                 logger.debug("App function was executed")
-            except IntegrityError:
-                logger.error("An attempt to rewrite existing df readings detected")
+            except (IntegrityError, Exception) as e:
+                if isinstance(e, IntegrityError):
+                    logger.error("An attempt to rewrite existing df readings detected")
+                else:
+                    logger.error(f"Error happened while executing app function, {e}")
                 self.excep_health = HealthGrades.ERROR
-            except Exception:
-                self.excep_health = HealthGrades.ERROR
-                logger.error(f"Error happened while executing app function, {traceback.format_exc(-1)}")
+                self.update_map["is_catching_up"] = False  # reset 'catching up'
+                self.update_catching_up()
 
         logger.debug("Update other parameters")
         self.run_post_exec_routine()

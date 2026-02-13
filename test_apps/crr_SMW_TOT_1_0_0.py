@@ -6,7 +6,6 @@ from common.constants import STATUS_FIELD_NAME, CURR_STATE_FIELD_NAME
 
 from test_apps.ready_to_use_items import (
     datatype_temp,
-    datatype_mass,
     datatype_mass_total,
     degC_meas_unit,
     kg_meas_unit,
@@ -63,7 +62,7 @@ ds_bdn_vlv_1_state.save()
 
 
 app_type = AppType(
-    name="Cond return rate",
+    name="Condensate return rate",
     func_name="cond_ret_rate",
 )
 app_type.save()
@@ -71,9 +70,12 @@ app_type.save()
 app_settings = {
     "crr_warning_threshold": 75.0,
     "window_length_coef": 1.5,
-    "min_window_length_coef": 1.0,
+    "min_window_length_coef": 0.8,
     "min_steam_gen_value": 8,
-    "bvalve_kvs": [0.002],
+    "bdn_water_tot_reset_value": 4.5,
+    "bdn_valve_kvs": {"Boiler 1": 0.002},
+    "steam_tot_weights": {"Workshop 1": 1.0},
+    "water_tot_weights": {"Boilerhouse": 1.0},
     "undef_cid": {
         "total_occs": 5,
         "ok_cond": "==",
@@ -84,9 +86,9 @@ app_settings = {
         "num_of_undef_occs": 0,
     },
     "ok_from_warn_cid": {
-        "total_occs": 5,
+        "total_occs": 4,
         "ok_cond": ">=",
-        "num_of_ok_occs": 4,
+        "num_of_ok_occs": 3,
         "warn_cond": "==",
         "num_of_warn_occs": 0,
         "undef_cond": ">=",
@@ -122,7 +124,7 @@ app = Application(
 app.save()
 
 df_steam_tot_1 = Datafeed(
-    name="Steam total 1",
+    name="Steam total Workshop 1",
     parent=app,
     datastream=ds_steam_tot_1,
     data_type=datatype_mass_total,
@@ -133,7 +135,7 @@ df_steam_tot_1 = Datafeed(
 df_steam_tot_1.save()
 
 df_water_tot_1 = Datafeed(
-    name="Water total 1",
+    name="Water total Boilerhouse",
     parent=app,
     datastream=ds_water_tot_1,
     data_type=datatype_mass_total,
@@ -144,7 +146,7 @@ df_water_tot_1 = Datafeed(
 df_water_tot_1.save()
 
 df_bdn_vlv_1_state = Datafeed(
-    name="Bdn valve 1 state",
+    name="Bdn valve state Boiler 1",
     parent=app,
     datastream=ds_bdn_vlv_1_state,
     data_type=datatype_binary_state,
@@ -155,7 +157,7 @@ df_bdn_vlv_1_state = Datafeed(
 df_bdn_vlv_1_state.save()
 
 df_bdn_temp_1 = Datafeed(
-    name="Bdn temp 1",
+    name="Bdn temp Boiler 1",
     parent=app,
     datastream=ds_bdn_temp_1,
     data_type=datatype_temp,
@@ -166,10 +168,10 @@ df_bdn_temp_1 = Datafeed(
 df_bdn_temp_1.save()
 
 df_bdn_water_mass_1 = Datafeed(
-    name="Bdn water mass 1",
+    name="Bdn water total Boiler 1",
     parent=app,
     datastream=None,
-    data_type=datatype_mass,
+    data_type=datatype_mass_total,
     meas_unit=kg_meas_unit,
     time_resample=60000,
 )
@@ -201,7 +203,6 @@ df_status = Datafeed(
     meas_unit=None,
 )
 df_status.save()
-
 
 graph_settings = {
     "y_min": 0,

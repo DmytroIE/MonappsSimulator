@@ -34,43 +34,49 @@ class AppFuncSettingsModel(BaseModel):
     delta_temp: float = Field(
         title="Delta T",
         default=default_delta_temp,
-        ge=0.0,
-        changeable=True,
+        gt=0.0,
+        json_schema_extra={"changeable": True},
         description="Temperature difference between inlet and outlet considered a stall condition",
     )
     temp_in_threshold: float = Field(
         title="ON/OFF threshold",
         default=default_temp_in_threshold,
-        changeable=True,
+        json_schema_extra={"changeable": True},
         description="Inlet temperature ON/OFF threshold",
     )
     temp_diff_error_threshold: float = Field(
         title="T error threshold",
         default=default_temp_diff_error_threshold,
-        ge=0.0,
-        changeable=True,
+        gt=0.0,
+        json_schema_extra={"changeable": True},
         description="Difference between outlet and inlet temperature considered an error",
     )
     cs_delay_trans_counts: int = Field(
         title="CS delay trans counts",
         default=default_cs_delay_trans_counts,
         ge=0,
-        changeable=False,
+        json_schema_extra={"changeable": True},
         description="""Delay between the occurrence of an event and the transition to \
 a new current state expressed in numbers of the application 'time_resample'""",
     )
     undef_cid: CondInitDict = Field(
-        default=default_undef_cid, changeable=False, title="""Condition for switching to UNDEFINED status"""
+        default=default_undef_cid,
+        json_schema_extra={"changeable": False},
+        title="""Condition for switching to UNDEFINED status""",
     )
     ok_from_warn_cid: CondInitDict = Field(
-        default=default_ok_from_warn_cid, changeable=False, title="""Condition for switching from WARN to OK status"""
+        default=default_ok_from_warn_cid,
+        json_schema_extra={"changeable": False},
+        title="""Condition for switching from WARN to OK status""",
     )
     warn_cid: CondInitDict = Field(
-        default=default_warn_cid, changeable=False, title="""Condition for switching to WARN status"""
+        default=default_warn_cid,
+        json_schema_extra={"changeable": False},
+        title="""Condition for switching to WARN status""",
     )
     ok_from_undef_cid: CondInitDict = Field(
         default=default_ok_from_undef_cid,
-        changeable=False,
+        json_schema_extra={"changeable": False},
         title="""Condition for switching from UNDEFINED to OK status""",
     )
 
