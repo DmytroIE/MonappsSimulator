@@ -65,6 +65,7 @@ class DjangoAppSettings(NamedTuple):  # mocking django 'settings' object
     MIN_TIME_RESOL_MS: int
     MIN_TIME_APP_FUNC_INVOC_MS: int
     MAX_TS_MS: int
+    COEFF_RBE_DFRS_FROM_DSRS: int  # to create dfrs from rbe dsrs at approx. the same pace as dfrs from non-rbe dsrs
 
 
 # MAX_TS_MS = 32503679999999, to be used as something similar to Infinity for timestamps
@@ -75,6 +76,7 @@ settings = DjangoAppSettings(
     MIN_TIME_RESOL_MS=1000,
     MIN_TIME_APP_FUNC_INVOC_MS=60000,
     MAX_TS_MS=int(MAX_DT.timestamp() * 1000),
+    COEFF_RBE_DFRS_FROM_DSRS=2,
 )
 
 

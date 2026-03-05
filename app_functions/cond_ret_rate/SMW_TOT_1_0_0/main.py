@@ -232,6 +232,7 @@ def function(
                     # create a new df reading
                     bdn_water_dfr = DfReading(time=ts, value=acc_value, datafeed=bdn_water_tot_df, restored=False)
                     derived_df_reading_map[bdn_water_tot_df.name]["new_df_readings"].append(bdn_water_dfr)
+                logger.debug(f"Totalizer value for {bdn_water_tot_df.name} was updated -> {acc_value}")
 
             if result is None:  # no overlap
                 add_to_alarm_payload(alarm_payload, "No overlapping readings", {}, rts, "w")

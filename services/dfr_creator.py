@@ -142,7 +142,9 @@ class DfrCreator:
             if self.ds.is_rbe and self.df.is_aug_on:
                 # for 'rbe' datastreams we rather use the potential number of dfrs
                 # that can be created by the aug algorithm
-                potential_batch_end_rts = self.start_rts + batch_size * self.df.time_resample
+                potential_batch_end_rts = (
+                    self.start_rts + batch_size * self.df.time_resample * settings.COEFF_RBE_DFRS_FROM_DSRS
+                )
                 # in certain cases, 'potential_batch_end_rts' can be greater than 'self.end_rts', so crop
                 self.batch_end_rts = min(potential_batch_end_rts, self.end_rts)
             self.ds_readings = list(
@@ -155,7 +157,9 @@ class DfrCreator:
             return True
         else:
             if self.ds.is_rbe and self.df.is_aug_on and self.df.aug_policy == AugmentationPolicy.TILL_NOW:
-                potential_batch_end_rts = self.start_rts + batch_size * self.df.time_resample
+                potential_batch_end_rts = (
+                    self.start_rts + batch_size * self.df.time_resample * settings.COEFF_RBE_DFRS_FROM_DSRS
+                )
                 # in certain cases, 'potential_batch_end_rts' can be greater than 'self.end_rts', so crop
                 self.batch_end_rts = min(potential_batch_end_rts, self.end_rts)
                 self.ds_readings = []
