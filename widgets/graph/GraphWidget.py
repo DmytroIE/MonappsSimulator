@@ -23,8 +23,6 @@ from utils.ts_utils import create_grid, ceil_timestamp, floor_timestamp
 
 matplotlib.use("Qt5Agg")
 
-Y_MAX = 300
-Y_MIN = -50
 DEFAULT_Y_MAX = 150
 DEFAULT_Y_MIN = 0
 DEFAULT_NUM_GRID_COUNTS = 50

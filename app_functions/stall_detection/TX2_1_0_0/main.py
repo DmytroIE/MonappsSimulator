@@ -6,7 +6,7 @@ from classes.dfreading import DfReading
 from utils.ts_utils import create_grid
 from common.complex_types import AppFuncReturn, DerivedDfReadingMap, UpdateMap
 from common.constants import STATUS_FIELD_NAME, CURR_STATE_FIELD_NAME
-from utils.app_func_utils import get_end_rts, get_df_value_map
+from app_functions.helpers.utils.app_func_utils import get_end_rts, get_df_value_map
 from utils.alarm_utils import add_to_alarm_payload
 
 from app_functions.helpers.utils.occ_cluster_list import OccurrenceClusterList
@@ -76,7 +76,6 @@ def function(
             base_settings.ok_from_warn_cid,
             base_settings.warn_cid,
         )
-
         all_occs = OccurrenceClusterList(app_state.all_occs)
 
         # -3- get new df values as a map

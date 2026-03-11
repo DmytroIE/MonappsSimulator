@@ -1,4 +1,4 @@
-from typing import Dict, Self
+from typing import Dict, Iterable, Self
 from classes.object_manager import ObjectManager
 from common.constants import (
     StatusTypes,
@@ -39,17 +39,20 @@ class Application:
         time_status_stale: int = 86400000 * 15,
         time_curr_state_stale: int = 600000,
         time_health_error: int = 600000,
+        func_bundles: Iterable | None = None,
     ) -> None:
 
         self.type = type
         self.time_resample = time_resample
         self.settings = app_settings
+        self.state: str | dict = ""  # used to retain the state as a JSON string between calculations
         self.state = {}  # For retaining the state between calculations
         self.errors = {}
         self.warnings = {}
         self.cursor_ts = cursor_ts
         self.is_enabled = False
         self.func_version = func_version
+        self.func_bundles = func_bundles if func_bundles is not None else set()
 
         self.status = StatusTypes.UNDEFINED
         self.curr_state = CurrStateTypes.UNDEFINED

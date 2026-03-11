@@ -14,18 +14,12 @@ class AppFuncSettingsBundle[T]:
         if len(changes) == 0 or not isinstance(changes, dict):
             return
 
-        changeable_fields = set()
-        for name, info in settings_model.model_fields.items():
-            if isinstance(info.json_schema_extra, dict):
-                if info.json_schema_extra.get("changeable", None):
-                    changeable_fields.add(name)
-
         ranked_changed_settings = {}
         for key, ch_dict in changes.items():
             try:
                 ts = int(key)  # if 'key' is coerceable to 'int', then it is a timestamp
                 if isinstance(ch_dict, dict):
-                    ranked_changed_settings[ts] = {k: v for k, v in ch_dict.items() if k in changeable_fields}
+                    ranked_changed_settings[ts] = {k: v for k, v in ch_dict.items()}
             except ValueError:
                 pass  # other values will be ignored
 

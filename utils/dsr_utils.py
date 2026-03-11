@@ -28,13 +28,13 @@ def create_ds_readings(
         ds_readings, non_roc_ds_readings = roc_filter_ds_readings(ds_readings, ds)
 
     if len(ds_readings) > 0:
-        logger.debug(f"Created {len(ds_readings)} ds_readings, ds_id = {ds.pk}")
+        logger.debug(f"Created {len(ds_readings)} ds readings for '{ds.name}'")
     if len(unused_ds_readings) > 0:
-        logger.debug(f"Created {len(unused_ds_readings)} unused ds_readings, ds_id = {ds.pk}")
+        logger.debug(f"Created {len(unused_ds_readings)} unused ds readings for '{ds.name}'")
     if len(invalid_ds_readings) > 0:
-        logger.debug(f"Created {len(invalid_ds_readings)} invalid ds_readings, ds_id = {ds.pk}")
+        logger.debug(f"Created {len(invalid_ds_readings)} invalid ds readings for '{ds.name}'")
     if len(non_roc_ds_readings) > 0:
-        logger.debug(f"Created {len(non_roc_ds_readings)} non_roc ds_readings, ds_id = {ds.pk}")
+        logger.debug(f"Created {len(non_roc_ds_readings)} non_roc ds readings for '{ds.name}'")
 
     return ds_readings, unused_ds_readings, invalid_ds_readings, non_roc_ds_readings
 

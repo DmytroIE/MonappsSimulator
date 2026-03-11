@@ -1,3 +1,6 @@
+from math import sqrt
+
+
 def get_pres_from_sat_temp(t: float):
     """
     The function returns the approximate pressure in barg derived from the saturation temperature.\n
@@ -24,3 +27,14 @@ def get_water_density_from_sat_temp(t: float):
     :type t: float
     """
     return -0.00254013 * t * t - 0.1814289 * t + 1002.46842215
+
+
+def calc_bdn_amount(temp: float, valve_open: bool, kv: float, time: int, backpres_coef: float = 0.9) -> float:
+    """
+    The function calculates the blowdown amount in kg over the 'time' period based on the saturation temperature,
+    valve status and valve coefficient (kv) using the orifice flow formula.
+    """
+    bdn_pres = get_pres_from_sat_temp(temp)
+    density = get_water_density_from_sat_temp(temp)
+    # backpres_coef is a coefficient that accounts for backpressure in the blowdown line
+    return sqrt(bdn_pres * backpres_coef) * density * kv * time / 3600000 * (1 if valve_open else 0)

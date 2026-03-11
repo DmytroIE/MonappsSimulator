@@ -1,3 +1,5 @@
+from typing import Iterable
+
 from classes.datafeed import Datafeed
 from common.complex_types import DfValueMap
 
@@ -28,7 +30,9 @@ def straighten_tot_readings(ordered_value_map: DfValueMap, df_name: str) -> None
         prev_value = value
 
 
-def get_boundaries_of_overlapping_tot_readings(df_value_map: DfValueMap, tot_dfs: list[Datafeed], margin_ms: int = 0):
+def get_boundaries_of_overlapping_tot_readings(
+    df_value_map: DfValueMap, tot_dfs: Iterable[Datafeed], margin_ms: int = 0
+):
     tot_df_boundary_value_map = {df.name: {"left_val": 0, "right_val": 0} for df in tot_dfs}
     tot_df_names = set(tot_df_boundary_value_map.keys())
 
@@ -91,3 +95,10 @@ def get_boundaries_of_overlapping_tot_readings(df_value_map: DfValueMap, tot_dfs
         return None
 
     return left_boundary_ts, right_boundary_ts, tot_df_boundary_value_map
+
+
+def add_value_to_totalizer(tot_value: int | float, value: int | float, reset_value: int | float) -> int | float:
+    if tot_value + value > reset_value:
+        tot_value = 0
+    tot_value += value
+    return tot_value

@@ -3,7 +3,7 @@ from classes.application import Application
 from classes.datafeed import Datafeed
 
 from common.complex_types import AppFuncReturn, DerivedDfReadingMap, UpdateMap
-from utils.app_func_utils import get_end_rts
+from app_functions.helpers.utils.app_func_utils import get_end_rts
 
 logger = logging.getLogger("#monitoring_1_0_0")
 

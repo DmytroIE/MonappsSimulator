@@ -41,4 +41,4 @@ class DerivedDfReadingRow(TypedDict):
 type DerivedDfReadingMap = dict[str, DerivedDfReadingRow]
 type AppFuncReturn = tuple[DerivedDfReadingMap, UpdateMap]
 
-type AppFunction = Callable[[Application, dict[str, Datafeed], dict[str, Datafeed]], AppFuncReturn]
+type AppFunction = Callable[[Application, DerivedDfReadingMap, UpdateMap], None]

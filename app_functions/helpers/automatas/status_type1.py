@@ -155,5 +155,8 @@ class Automata:
     def get_state(self) -> AutomataStates:
         return self._state
 
+    def get_internal_state(self) -> InternalState:
+        return InternalState(state=self._state, prev_state=self._prev_state)
+
     def get_internal_state_as_dict(self) -> dict[str, Any]:
         return {"state": self._state.value, "prev_state": self._prev_state.value}

@@ -343,7 +343,7 @@ class DfrCreator:
         last_saved_dfr_rts = None
         if len(df_readings) > 0:
             DfReading.objects.bulk_create(df_readings)
-            logger.debug(f"New {len(df_readings)} df readings were saved")
+            logger.debug(f"New {len(df_readings)} df readings for '{self.df.name}' were saved")
             last_saved_dfr_rts = df_readings[-1].time
 
         set_attr_if_cond(self.rts_to_start_with_next_time, ">", self.df, "ts_to_start_with")

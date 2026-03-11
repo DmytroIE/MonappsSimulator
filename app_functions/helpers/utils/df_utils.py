@@ -1,21 +1,19 @@
 import re
+from typing import Mapping
 
 from classes.datafeed import Datafeed
 from classes.dfreading import DfReading
 
 
-def get_datafeeds_of_series(df_map: dict[str, Datafeed], series_name: str) -> list[Datafeed]:
-    dfs: list[Datafeed] = [df for df in df_map.values() if df.name.startswith(series_name)]
-    return dfs
+def get_df_map_of_series(df_map: Mapping[str, Datafeed], series_name: str) -> Mapping[str, Datafeed]:
+    ser_df_map: dict[str, Datafeed] = {df.name: df for df in df_map.values() if df.name.startswith(series_name)}
+    return ser_df_map
 
 
 def get_last_df_reading(df: Datafeed) -> DfReading | None:
-    last_dfr = DfReading.objects.filter(datafeed__id=df.pk).order_by("time").last()
-    if last_dfr is None:
+    if df.last_reading_ts is None:
         return None
-    if df.last_reading_ts != last_dfr.time:
-        raise ValueError(f"Datafeed '{df.name}' last_reading_ts is different from the last reading in db")
-    return last_dfr
+    return DfReading.objects.filter(datafeed__id=df.pk, time=df.last_reading_ts).first()
 
 
 def get_df_readings(df: Datafeed, start_ts: int, end_ts: int) -> list[DfReading]:
