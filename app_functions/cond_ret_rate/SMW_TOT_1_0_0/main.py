@@ -28,11 +28,11 @@ logger = logging.getLogger("#ccr_SMW_TOT_1_0_0")
 
 def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, update_map: UpdateMap) -> None:
 
-    logger.info("'crr_SMW_TOT_1_0_0' starts executing...")
-    df_map = get_df_maps_from_app(app)
-    [native_df_map, derived_df_map] = df_map.maps
+    logger.info("App function starts executing...")
 
     # get datafeeds
+    df_map = get_df_maps_from_app(app)
+    [native_df_map, derived_df_map] = df_map.maps
     steam_tot_df_map = get_df_map_of_series(df_map, "Steam total")
     mu_water_tot_df_map = get_df_map_of_series(df_map, "Make-up water total")
     lost_water_tot_df_map = get_df_map_of_series(df_map, "Lost water total")
@@ -44,13 +44,16 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
         derived_df_reading_map[df.name] = {"df": df, "new_df_readings": []}
 
     # prepare other variables
-    alarm_payload = update_map.get("alarm_payload", {})  # initialize alarm payload
+    alarm_payload = update_map.get("alarm_payload")
+    if alarm_payload is None:
+        alarm_payload = {}
+        update_map["alarm_payload"] = alarm_payload
 
     # at least one steam totalizer and one water totalizer df should exist
-    if len(steam_tot_df_map) == 0 or len(mu_water_tot_df_map) == 0:
-        add_to_alarm_payload(alarm_payload, "No steam or water totalizer", {}, app.cursor_ts, "w")
-        update_map["health"] = HealthGrades.WARNING
-        return
+    # if len(steam_tot_df_map) == 0 or len(mu_water_tot_df_map) == 0:
+    #     add_to_alarm_payload(alarm_payload, "No steam or water totalizer", {}, app.cursor_ts, "w")
+    #     update_map["health"] = HealthGrades.WARNING
+    #     return
 
     # get end time
     start_rts = app.cursor_ts
@@ -59,13 +62,11 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
     if end_rts <= start_rts:  # not all datafeed have readings with ts > cursor_ts
         return
 
-    # getting app settings
+    # getting app settings and state
     settings_bundle = AppFuncSettingsBundle[AfsModel](app.settings, AfsModel)  # validation and default values
-
     app_state = AppState(**app.state)
 
     # prepare some variables for the status automata
-    add_to_alarm_payload_part = partial(add_to_alarm_payload, alarm_payload)
     st_automata_int_state = app_state.st_automata_int_state
     all_occs = OccurrenceClusterList(app_state.all_occs)
 
@@ -95,13 +96,15 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
 
     # moving along the grid and run the main logic of the app for each point
     for rts in grid:
-        alarm_payload[rts] = {}  # NOTE: this is very important, add at least an empty dict for each rts
+        one_step_alarm_payload = {rts: {}}
         crr = None
         curr_state = None
         status = None
 
         # settings are the same within the 'app.time_resample' interval
         app_settings = settings_bundle.get_settings(rts)
+
+        add_to_alarm_payload_part = partial(add_to_alarm_payload, one_step_alarm_payload)
 
         # create values for derived datafeeds with formulas for the current bin
         # all derived readings should have timestamps > 'update_map["cursor_ts"]'
@@ -147,7 +150,7 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
         )
 
         if result is None:  # no overlap
-            add_to_alarm_payload(alarm_payload, "No overlapping readings", {}, rts, "w")
+            add_to_alarm_payload(one_step_alarm_payload, "No overlapping readings", None, rts, "w")
             curr_state = CurrStateTypes.UNDEFINED
         else:
             left_boundary_ts, right_boundary_ts, tot_df_boundary_value_map = result
@@ -155,7 +158,7 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
                 min(app_settings.min_window_length_coef, app_settings.window_length_coef) * app.time_resample
             )  # protection from 'min_window_length_coef' being greater than 'window_length_coef'
             if right_boundary_ts - left_boundary_ts < min_window_length:
-                add_to_alarm_payload(alarm_payload, "Min window length not met", {}, rts, "w")
+                add_to_alarm_payload(one_step_alarm_payload, "Min window length not met", None, rts, "w")
                 curr_state = CurrStateTypes.UNDEFINED
             else:
                 steam_generated = 0
@@ -165,7 +168,7 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
                     )
 
                 if steam_generated < app_settings.min_steam_gen_value:
-                    add_to_alarm_payload(alarm_payload, "No steam was generated over the period", {}, rts, "i")
+                    add_to_alarm_payload(one_step_alarm_payload, "No steam was generated over the period", None, rts, "i")
                     curr_state = CurrStateTypes.UNDEFINED
                 else:
                     # calculate amount of water losses
@@ -189,20 +192,20 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
                     if water_diff < 0:
                         # protection from wrong readings when water losses are greater than make-up water consumption
                         add_to_alarm_payload(
-                            alarm_payload, "Water losses are greater than make-up water consumption", {}, rts, "w"
+                            one_step_alarm_payload, "Water losses are greater than make-up water consumption", None, rts, "w"
                         )
                         water_diff = 0
                     if water_diff > steam_generated:
                         # protection from wrong readings when water difference is greater than steam generated
                         add_to_alarm_payload(
-                            alarm_payload, "Water difference is greater than steam generated", {}, rts, "w"
+                            one_step_alarm_payload, "Water difference is greater than steam generated", None, rts, "w"
                         )
                         water_diff = steam_generated
                     crr = (steam_generated - water_diff) / steam_generated * 100.0
                     logger.debug(f"----------> CRR = {crr}")
                     if crr < app_settings.crr_warning_threshold:
                         curr_state = CurrStateTypes.WARNING
-                        add_to_alarm_payload(alarm_payload, "Condensate return rate is below threshold", {}, rts, "w")
+                        add_to_alarm_payload(one_step_alarm_payload, "Condensate return rate is below threshold", None, rts, "w")
                     else:
                         curr_state = CurrStateTypes.OK
 
@@ -210,21 +213,14 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
         all_occs_updated = all_occs.create_copy_for_appending()
         all_occs_updated.append_occurrence(curr_state.value)  # NOTE: 'value' to serialize JSON
 
-        # --------------------------------------------------------------------------------------------------------
         # evaluate status
-
         # execute ST finite automata
         st_automata.execute(all_occs_updated)
-        # get the results
         status = st_automata.get_status()
 
-        # --------------------------------------------------------------------------------------------------------
-        # If the algorithm managed to get to this point, it is possible to add and update all the values
-        # created or updated within this iteration
+        # update at the end of the cycle
 
-        # get the internal state to use it in the next iteration
-        st_automata_int_state = st_automata.get_internal_state()
-        # and create df readings from values only if this cycle iteration was successful
+        # create df readings from values only if this cycle iteration was successful
         # so that last derived readings are always synced with 'cursor_ts' (no readings behind 'cursor_ts')
         # also finding the last values for totalizer-type datafeeds
         if crr is not None:
@@ -250,6 +246,8 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
                         if df.data_type.is_totalizer:
                             df_with_formula_row["last_value"] = value
 
+        # get the internal state to use it in the next iteration
+        st_automata_int_state = st_automata.get_internal_state()
         all_occs = all_occs_updated  # update the occurrence cluster list
 
         # update app output
@@ -262,3 +260,9 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
         }
 
         update_map["state"] = updated_state
+
+        for t, p in one_step_alarm_payload.items():
+            if alarm_payload.get(t) is None:
+                alarm_payload[t] = p
+            else:
+                alarm_payload[t].update(p)

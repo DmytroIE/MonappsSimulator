@@ -30,7 +30,7 @@ class Automata:
     def __init__(
         self,
         init_state: InternalState | None,
-        add_to_alarm_payload: Callable[[str, dict, int, Literal["e", "w", "i"]], None],
+        add_to_alarm_payload: Callable[[str, dict | None, int, Literal["e", "w", "i"]], None],
         error_msg: str,
         warning_msg: str,
         counter_type: type[PlcLikeCounter] = OnDelayCounter,
@@ -126,7 +126,7 @@ class Automata:
                     else:
                         # permanent actions
                         self._health_from_app = HealthGrades.ERROR
-                        self._add_to_alarm_payload(self._error_msg, {}, rts, "e")
+                        self._add_to_alarm_payload(self._error_msg, None, rts, "e")
                         self._curr_state = CurrStateTypes.UNDEFINED
 
                 case AutomataStates.OK:
@@ -167,7 +167,7 @@ class Automata:
                     else:
                         # permanent actions
                         self._curr_state = CurrStateTypes.WARNING
-                        self._add_to_alarm_payload(self._warning_msg, {}, rts, "w")
+                        self._add_to_alarm_payload(self._warning_msg, None, rts, "w")
 
             if not again:
                 break
@@ -180,6 +180,16 @@ class Automata:
 
     def get_state(self) -> AutomataStates:
         return self._state
+
+    def get_internal_state(self) -> InternalState:
+        return InternalState(
+            state=self._state,
+            prev_state=self._prev_state,
+            err_counts=self._err_counter.counts,
+            off_counts=self._off_counter.counts,
+            ok_counts=self._ok_counter.counts,
+            warn_counts=self._warn_counter.counts,
+        )
 
     def get_internal_state_as_dict(self) -> dict[str, Any]:
         return {

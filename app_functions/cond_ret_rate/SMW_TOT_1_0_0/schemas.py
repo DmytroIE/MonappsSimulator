@@ -2,7 +2,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, ConfigDict
 
 from app_functions.helpers.utils.constants import DEFAULT_TOT_RESET_VALUE
-from common.constants import CURR_STATE_FIELD_NAME, STATUS_FIELD_NAME
+from common.constants import CURR_STATE_FIELD_NAME, STATUS_FIELD_NAME, DataAggTypes, VariableTypes
 
 from app_functions.helpers.automatas.status_type1 import InternalState as StInternalState, CondInitDict
 
@@ -18,9 +18,15 @@ from .defaults import (
 )
 
 df_schema = {
-    "Condensate return rate": {"derived": True, "data_type": "Percentage"},
-    CURR_STATE_FIELD_NAME: {"derived": True, "data_type": CURR_STATE_FIELD_NAME},
-    STATUS_FIELD_NAME: {"derived": True, "data_type": STATUS_FIELD_NAME},
+    "Steam total <str>": {"var_type": VariableTypes.CONTINUOUS, "agg_type": DataAggTypes.SUM, "is_totalizer": True},
+    "Make-up water total <str>": {
+        "var_type": VariableTypes.CONTINUOUS,
+        "agg_type": DataAggTypes.SUM,
+        "is_totalizer": True,
+    },
+    "Cond return rate": {"var_type": VariableTypes.CONTINUOUS, "agg_type": DataAggTypes.AVG},
+    CURR_STATE_FIELD_NAME: {"var_type": VariableTypes.NOMINAL, "agg_type": DataAggTypes.LAST},
+    STATUS_FIELD_NAME: {"var_type": VariableTypes.NOMINAL, "agg_type": DataAggTypes.LAST},
 }
 
 
@@ -76,7 +82,6 @@ class AppFuncSettingsModel(BaseModel):
     )
     warn_cid: CondInitDict = Field(
         default=default_warn_cid,
-        json_schema_extra={"changeable": False},
         title="""Condition for switching to WARN status""",
     )
     ok_from_undef_cid: CondInitDict = Field(
@@ -88,4 +93,3 @@ class AppFuncSettingsModel(BaseModel):
 class AppState(BaseModel):
     all_occs: Optional[list] = None
     st_automata_int_state: Optional[StInternalState] = None
-    pass

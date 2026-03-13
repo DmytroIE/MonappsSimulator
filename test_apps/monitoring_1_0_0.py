@@ -63,13 +63,13 @@ app_type = AppType(
 )
 app_type.save()
 
-time_resample = 60000
+app_time_resample = 60000
 app = Application(
     type=app_type,
     app_settings={},
-    time_resample=time_resample,
-    func_version="1.0.0",
-    cursor_ts=get_floored_now_ts(time_resample),
+    time_resample=app_time_resample,
+    func_version="VER1 1.0.0",
+    cursor_ts=get_floored_now_ts(app_time_resample),
 )
 app.save()
 

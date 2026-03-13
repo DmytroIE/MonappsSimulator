@@ -33,7 +33,7 @@ degC_meas_unit.save()
 status_datatype = DataType(
     STATUS_FIELD_NAME,
     agg_type=DataAggTypes.LAST,
-    var_type=VariableTypes.DISCRETE,
+    var_type=VariableTypes.NOMINAL,
     category_map={
         StatusTypes.UNDEFINED: "Undefined",
         StatusTypes.OK: "OK",
@@ -46,7 +46,7 @@ status_datatype.save()
 curr_state_datatype = DataType(
     CURR_STATE_FIELD_NAME,
     agg_type=DataAggTypes.LAST,
-    var_type=VariableTypes.DISCRETE,
+    var_type=VariableTypes.NOMINAL,
     category_map={
         CurrStateTypes.UNDEFINED: "Undefined",
         CurrStateTypes.OK: "OK",

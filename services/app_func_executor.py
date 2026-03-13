@@ -4,10 +4,11 @@ import json
 from collections.abc import Iterable
 from typing import Literal
 
+from app_functions.helpers.utils.app_func_utils import get_df_maps_from_app
 from classes.application import Application
 from classes.dfreading import DfReading
-from common.constants import HealthGrades, STATUS_FIELD_NAME, CURR_STATE_FIELD_NAME, IntegrityError
-from common.complex_types import AppFunction, DerivedDfReadingMap, UpdateMap
+from common.constants import DataAggTypes, HealthGrades, STATUS_FIELD_NAME, CURR_STATE_FIELD_NAME, IntegrityError
+from common.complex_types import AppFuncBundle, DerivedDfReadingMap, UpdateMap
 from services.dfr_creator import DfrCreator
 from utils.ts_utils import create_now_ts_ms
 from utils.sequence_utils import find_instance_with_max_attr
@@ -20,9 +21,10 @@ logger = logging.getLogger("#appf_exec")
 
 
 class AppFuncExecutor:
-    def __init__(self, app: Application, app_func: AppFunction):
+    def __init__(self, app: Application, app_func_bundle: AppFuncBundle):
         self.app = app
-        self.app_func = app_func
+        self.app_func = app_func_bundle["function"]
+        self.df_schema = app_func_bundle["df_schema"]
         self.update_map: UpdateMap = {
             "health": HealthGrades.OK,
             "alarm_payload": {},
@@ -83,7 +85,6 @@ class AppFuncExecutor:
         # and locking all datafeed objects related to the app with select_for_update() as well
         if self.app.is_enabled:
             self.run_exec_routine()
-
             try:
                 self.save_derived_readings()
             except IntegrityError:
@@ -93,24 +94,48 @@ class AppFuncExecutor:
                 self.excep_health = HealthGrades.ERROR
                 self.update_map["is_catching_up"] = False
             else:
-                self.update_catching_up()
                 self.update_cursor_pos()
                 self.update_alarms()
-            self.update_state()
+                self.update_state()
+            self.update_catching_up()
 
         self.run_post_exec_routine()
         logger.debug("--------------------END--------------------")  # NOTE: --> remove in the 'monapps'
 
+    def check_df_schema(self):
+        df_map = get_df_maps_from_app(self.app)
+        for df_name, schema in self.df_schema.items():
+            if df_name.find("<str>") != -1 or df_name.find("<int>") != -1:
+                df_name_prefix = df_name.split("<")[0]
+                has = filter(lambda name: name.startswith(df_name_prefix), df_map.keys())
+                if not has:
+                    raise Exception(f"No datafeed with prefix '{df_name_prefix}' found")
+                # if there are several datafeeds with the same prefix, it will be checked later in the app function
+                continue
+            elif df_name not in df_map:
+                raise Exception(f"Datafeed '{df_name}' is not found among app datafeeds")
+            df = df_map[df_name]
+            var_type = schema["var_type"]
+            agg_type = schema["agg_type"]
+            if df.data_type.var_type != var_type:
+                raise Exception(f"Datafeed '{df_name}' has wrong variable type")
+            if df.data_type.agg_type != agg_type:
+                raise Exception(f"Datafeed '{df_name}' has wrong aggregation type")
+            if agg_type == DataAggTypes.SUM:
+                is_totalizer = schema.get("is_totalizer")
+                if is_totalizer is not None and is_totalizer != df.data_type.is_totalizer:
+                    raise Exception(f"Datafeed '{df_name}' should {"" if is_totalizer else "not"} be a totalizer")
+
     def run_exec_routine(self):
         logger.debug("Starting app function")
+        if isinstance(
+            self.app.state, str
+        ):  # NOTE: --> added just to check if the state is serializable, remove in the 'monapps'
+            self.app.state = json.loads(
+                self.app.state
+            )  # NOTE: --> added just to check if the state is serializable, remove in the 'monapps'
         try:
-            if isinstance(
-                self.app.state, str
-            ):  # NOTE: --> added just to check if the state is serializable, remove in the 'monapps'
-                self.app.state = json.loads(
-                    self.app.state
-                )  # NOTE: --> added just to check if the state is serializable, remove in the 'monapps'
-
+            self.check_df_schema()
             self.app_func(self.app, self.derived_df_reading_map, self.update_map)
         except Exception as e:
             self.excep_health = HealthGrades.ERROR
@@ -160,8 +185,9 @@ class AppFuncExecutor:
         if not set_attr_if_cond(latest_dfr.value, "!=", self.app, name):
             return
         full_name = CURR_STATE_FIELD_NAME if name == "curr_state" else STATUS_FIELD_NAME
-        add_to_alarm_log("INFO", f"{full_name} changed", instance=self.app)
-        logger.debug(f"{full_name} changed -> : {latest_dfr.value}")
+        s = f"{full_name} changed -> : {latest_dfr.value}"
+        add_to_alarm_log("INFO", s, instance=self.app)
+        logger.debug(s)
 
     def update_catching_up(self):
         if (is_catching_up := self.update_map.get("is_catching_up")) is None:

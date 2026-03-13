@@ -42,3 +42,11 @@ type DerivedDfReadingMap = dict[str, DerivedDfReadingRow]
 type AppFuncReturn = tuple[DerivedDfReadingMap, UpdateMap]
 
 type AppFunction = Callable[[Application, DerivedDfReadingMap, UpdateMap], None]
+
+
+class AppFuncBundle(TypedDict):
+    function: AppFunction
+    version: str
+    description: str
+    df_schema: dict[str, dict[str, Any]]  # df_name -> {"data_type": DataType, "agg_type": DataAggTypes, "is_totalizer": bool (only for sum agg type)}
+    settings_jsonschema: dict

@@ -40,8 +40,8 @@ class DataAggTypes(IntEnum):
     AVG = 0  # not available for categorical and discrete data
     SUM = 1  # not available for categorical data
     LAST = 2  # can be used for cat. data that represents a certain state
-    MAX = 3  # not available for categorical data
-    MIN = 4  # not available for categorical data
+    MAX = 3  # not available for nominal data
+    MIN = 4  # not available for nominal data
     MODE = 5  # for categorical data only
 
 

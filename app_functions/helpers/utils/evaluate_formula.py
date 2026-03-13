@@ -131,7 +131,7 @@ def _replace_sub_calls(expr: str) -> str:
         if depth != 0:
             raise ValueError("Incorrect formula")
 
-        inner = out[start + 4:i]
+        inner = out[start + 4: i]
         left, right = _split_top_level_sub_args(inner)
         replacement = f"(({left}) if ({left}) is not None else ({right}))"
         out = out[:start] + replacement + out[i + 1:]
@@ -168,7 +168,7 @@ def _unwrap_total(expr: str) -> tuple[bool, str]:
     if depth != 0 or i != len(stripped) - 1:
         raise ValueError("Incorrect formula")
 
-    return True, stripped[len("TOTAL("):i]
+    return True, stripped[len("TOTAL("): i]
 
 
 def evaluate_formula(
@@ -178,39 +178,39 @@ def evaluate_formula(
     funcs: Iterable[str],
     start_rts: int,
     end_rts: int,
-    add_to_alarm_payload: Callable[[str, dict, int, Literal["e", "w", "i"]], None],
+    add_to_alarm_payload: Callable[[str, dict | None, int, Literal["e", "w", "i"]], None],
     **kwargs: Any,
 ) -> None:
     """
-        Evaluate a derived-datafeed formula over (start_rts, end_rts] and write results
-        directly into df_value_map under df.name.
+    Evaluate a derived-datafeed formula over (start_rts, end_rts] and write results
+    directly into df_value_map under df.name.
 
-        Supported formula syntax examples:
-        SUB(dfs["Water total 1"], 0) + sqrt(SUB(dfs["Bdn temp"], stgs["temp_subst"]))
-        TOTAL(dfs["water_impulses"] * stgs["water_weight"])
+    Supported formula syntax examples:
+    SUB(dfs["Water total 1"], 0) + sqrt(SUB(dfs["Bdn temp"], stgs["temp_subst"]))
+    TOTAL(dfs["water_impulses"] * stgs["water_weight"])
 
-        Rules and behavior:
-        - Datafeed references use same-timestamp syntax: dfs["name"].
-        - Setting references use stgs["key"].
-        - SUB(value, fallback) substitutes only when value is None.
-        - TOTAL(expr) is supported only as the root wrapper; for each timestamp,
-            expr is accumulated onto the previous value.
-        - Available callable names include built-in math functions
-            (sqrt, pow, sin, cos, tan, exp, log) plus functions loaded from
-            bundles listed in funcs.
-        - Formula text is tokenized and then all whitespace in the safe expression
-            is removed before AST parsing.
+    Rules and behavior:
+    - Datafeed references use same-timestamp syntax: dfs["name"].
+    - Setting references use stgs["key"].
+    - SUB(value, fallback) substitutes only when value is None.
+    - TOTAL(expr) is supported only as the root wrapper; for each timestamp,
+        expr is accumulated onto the previous value.
+    - Available callable names include built-in math functions
+        (sqrt, pow, sin, cos, tan, exp, log) plus functions loaded from
+        bundles listed in funcs.
+    - Formula text is tokenized and then all whitespace in the safe expression
+        is removed before AST parsing.
 
-        Execution details:
-        - kwargs["last_value"] seeds TOTAL accumulation (defaults to 0 when missing/None).
-        - kwargs["tot_reset_value"] overrides the TOTAL reset threshold
-            (defaults to DEFAULT_TOT_RESET_VALUE).
-        - If any required dfs value is None at a timestamp, that timestamp is
-            silently skipped (no alarm, no output value).
-        - Setup/validation errors (invalid grid, missing settings/bundles, malformed
-            formula) raise ValueError.
-        - Per-timestamp evaluation errors are reported via add_to_alarm_payload with
-            warning severity and evaluation continues.
+    Execution details:
+    - kwargs["last_value"] seeds TOTAL accumulation (defaults to 0 when missing/None).
+    - kwargs["tot_reset_value"] overrides the TOTAL reset threshold
+        (defaults to DEFAULT_TOT_RESET_VALUE).
+    - If any required dfs value is None at a timestamp, that timestamp is
+        silently skipped (no alarm, no output value).
+    - Setup/validation errors (invalid grid, missing settings/bundles, malformed
+        formula) raise ValueError.
+    - Per-timestamp evaluation errors are reported via add_to_alarm_payload with
+        warning severity and evaluation continues.
     """
 
     # extract formula and remove all non-printable characters and spaces
@@ -307,7 +307,7 @@ def evaluate_formula(
                     last_value = 0
                 result = last_value + result
         except Exception as e:
-            add_to_alarm_payload(f"Error while evaluating formula for {df.name}: {e}", {}, ts, "w")
+            add_to_alarm_payload(f"Error while evaluating formula for {df.name}: {e}", None, ts, "w")
         else:
             # store result directly in the provided value map under derived df's name
             if ts not in df_value_map:
