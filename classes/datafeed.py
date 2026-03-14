@@ -21,7 +21,7 @@ class Datafeed:
         is_aug_on: bool = True,
         aug_policy: AugmentationPolicy = AugmentationPolicy.TILL_LAST_DF_READING,
         time_resample: int | None = None,
-        formula: str = "",
+        formula: dict | None = None,
     ) -> None:
         self.name = name
         self.data_type = data_type
@@ -44,9 +44,10 @@ class Datafeed:
                 raise ValueError("App time resample should be a multiple of the df time resample")
         self.db_time_resample = time_resample
         if datastream is None:
-            self.formula = formula.strip()  # only derived dfs can have formula
+            # only derived dfs can have formula
+            self.formula = formula if formula is not None else {}
         else:
-            self.formula = ""
+            self.formula = {}
 
         Datafeed.id_counter += 1
         self.id = Datafeed.id_counter

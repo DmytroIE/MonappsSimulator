@@ -73,10 +73,11 @@ app_settings = {
     "window_length_coef": 1.5,
     "min_window_length_coef": 0.8,
     "min_steam_gen_value": 8,
-    "int_tot_reset_value": 4.5,
+    "bdn_tot_boiler_1_res_val": 4.5,
     "overlap_margin": 0,
     "bdn_valve_kvs_boiler_1": 0.002,
     "water_click_weight_boilerhouse": 0.1,
+    "bdn_temp_1_subst": 180.0,
     "undef_cid": {
         "total_occs": 5,
         "ok_cond": "==",
@@ -121,7 +122,6 @@ app = Application(
     time_resample=600000,
     func_version="SMW_TOT 1.0.0",
     cursor_ts=1766239200000,
-    func_bundles={"steam_water"},
 )
 app.save()
 
@@ -154,7 +154,13 @@ df_water_tot_1 = Datafeed(
     data_type=datatype_mass_total,
     meas_unit=kg_meas_unit,
     time_resample=60000,
-    formula='dfs["Make-up water clicks total Boilerhouse"] * stgs["water_click_weight_boilerhouse"]',
+    formula={
+        "tokens": {
+            "clicks": {"type": "datafeed", "name": "Make-up water clicks total Boilerhouse"},
+            "weight": {"type": "setting", "name": "water_click_weight_boilerhouse"},
+        },
+        "formula": "clicks * weight",
+    },
 )
 df_water_tot_1.save()
 
@@ -187,11 +193,18 @@ df_bdn_water_mass_1 = Datafeed(
     data_type=datatype_mass_total,
     meas_unit=kg_meas_unit,
     time_resample=60000,
-    formula="""TOTAL(
-    calc_bdn_amount(dfs["Bdn temp Boiler 1"],
-    dfs["Bdn valve state Boiler 1"],
-    stgs["bdn_valve_kvs_boiler_1"],
-    tres))""",
+    formula={
+        "tokens": {
+            "temp": {"type": "datafeed", "name": "Bdn temp Boiler 1", "fallback": "temp_subst"},
+            "valve_state": {"type": "datafeed", "name": "Bdn valve state Boiler 1"},
+            "kvs": {"type": "setting", "name": "bdn_valve_kvs_boiler_1"},
+            "temp_subst": {"type": "setting", "name": "bdn_temp_1_subst"},
+            "tot_res": {"type": "setting", "name": "bdn_tot_boiler_1_res_val"},
+            "calc_bdn": {"type": "function", "name": "calc_bdn_amount", "bundle": "steam_water"},
+            "total": {"type": "function", "name": "totalize", "bundle": "tot_utils"},
+        },
+        "formula": "total(lv, calc_bdn(temp, valve_state, kvs, tr), tot_res)",
+    },
 )
 df_bdn_water_mass_1.save()
 

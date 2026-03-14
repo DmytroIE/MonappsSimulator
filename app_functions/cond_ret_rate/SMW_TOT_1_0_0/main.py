@@ -3,7 +3,7 @@ from functools import partial
 from classes.application import Application
 from classes.datafeed import Datafeed
 from classes.dfreading import DfReading
-from utils.ts_utils import create_grid
+from utils.ts_utils import create_dt_from_ts_ms, create_grid
 from common.complex_types import DerivedDfReadingMap, UpdateMap
 from common.constants import STATUS_FIELD_NAME, CURR_STATE_FIELD_NAME, CurrStateTypes, HealthGrades
 from utils.alarm_utils import add_to_alarm_payload
@@ -73,10 +73,10 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
     # prepare a map for datafeeds with formulas
     df_with_formula_map = {}
     for df in derived_df_map.values():
-        if df.formula == "":
+        if df.formula.get("formula") is None:
             continue
 
-        df_with_formula_map[df.name] = {"df": df, "last_value": None}
+        df_with_formula_map[df.name] = {"df": df, "last_value": 0}
         if df.data_type.is_totalizer:
             last_dfr = get_last_df_reading(df)
             if last_dfr is not None:
@@ -108,6 +108,7 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
 
         # create values for derived datafeeds with formulas for the current bin
         # all derived readings should have timestamps > 'update_map["cursor_ts"]'
+
         for df_with_formula_row in df_with_formula_map.values():
             df: Datafeed = df_with_formula_row["df"]
             last_value = df_with_formula_row["last_value"]
@@ -115,12 +116,9 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
                 df,
                 df_value_map,
                 app_settings.model_dump(),
-                app.func_bundles,
                 rts - app.time_resample,
                 rts,
-                add_to_alarm_payload_part,
-                last_value=last_value,
-                tot_reset_value=app_settings.int_tot_reset_value,
+                last_value
             )
 
         # create a status automata
@@ -237,7 +235,7 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
             df: Datafeed = df_with_formula_row["df"]
             timestamps = sorted(df_value_map.keys())
             for ts in timestamps:
-                if rts - app.time_resample < ts <= rts:
+                if rts - app.time_resample < ts <= rts:  # only readings within the current bin
                     row = df_value_map[ts]
                     if df.name in row:
                         value = row[df.name]
@@ -245,6 +243,7 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
                         derived_df_reading_map[df.name]["new_df_readings"].append(dfr)
                         if df.data_type.is_totalizer:
                             df_with_formula_row["last_value"] = value
+                        print(f"Created tot {value} at time {create_dt_from_ts_ms(ts)} - {ts}")
 
         # get the internal state to use it in the next iteration
         st_automata_int_state = st_automata.get_internal_state()

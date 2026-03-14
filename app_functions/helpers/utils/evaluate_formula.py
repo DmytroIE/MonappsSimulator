@@ -1,23 +1,21 @@
-import re
 import ast
 import math
-from typing import Callable, Any, Mapping, Literal, Iterable
+from functools import lru_cache
+from typing import Any, Callable, Mapping
 
 from classes.datafeed import Datafeed
 from common.complex_types import DfValueMap
 from utils.ts_utils import create_grid
-from app_functions.helpers.utils.constants import DEFAULT_TOT_RESET_VALUE
 from app_functions.helpers.utils import formula_functions
 
 
-# validate AST nodes to prevent unsafe constructs
 ALLOWED_NODES = (
     ast.Expression,
     ast.BinOp,
     ast.UnaryOp,
-    ast.IfExp,
+    ast.BoolOp,
     ast.Compare,
-    ast.IsNot,
+    ast.IfExp,
     ast.Constant,
     ast.Call,
     ast.Name,
@@ -31,10 +29,19 @@ ALLOWED_NODES = (
     ast.FloorDiv,
     ast.USub,
     ast.UAdd,
-    ast.Tuple,
-    ast.List,
-    ast.Dict,
+    ast.And,
+    ast.Or,
+    ast.Not,
+    ast.Eq,
+    ast.NotEq,
+    ast.Lt,
+    ast.LtE,
+    ast.Gt,
+    ast.GtE,
+    ast.Is,
+    ast.IsNot,
 )
+
 
 MATH_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "sqrt": math.sqrt,
@@ -47,21 +54,6 @@ MATH_FUNCTIONS: dict[str, Callable[..., Any]] = {
 }
 
 
-def get_bundle(bundle_name: str) -> Mapping[str, Callable[..., Any]]:
-    """Return a validated formula-function bundle by name."""
-    bundle = formula_functions.__dict__.get(bundle_name)
-    if bundle is None:
-        raise ValueError(f"Function bundle '{bundle_name}' does not exist")
-    if not isinstance(bundle, Mapping):
-        raise ValueError(f"Function bundle '{bundle_name}' has invalid format")
-
-    for func_name, func_impl in bundle.items():
-        if not callable(func_impl):
-            raise ValueError(f"Function '{func_name}' in bundle '{bundle_name}' is not callable")
-
-    return bundle
-
-
 class _Validator(ast.NodeVisitor):
     def generic_visit(self, node):
         if not isinstance(node, ALLOWED_NODES):
@@ -69,249 +61,231 @@ class _Validator(ast.NodeVisitor):
         super().generic_visit(node)
 
 
-def _split_top_level_sub_args(raw_args: str) -> tuple[str, str]:
-    depth = 0
-    in_string = False
-    string_quote = ""
+@lru_cache(maxsize=10)
+def _get_function_from_bundle(bundle_name: str, function_name: str) -> Callable[..., Any]:
+    """Load and cache function callables from formula bundles."""
+    bundle = formula_functions.__dict__.get(bundle_name)
+    if bundle is None:
+        raise ValueError(f"Function bundle '{bundle_name}' does not exist")
+    if not isinstance(bundle, Mapping):
+        raise ValueError(f"Function bundle '{bundle_name}' has invalid format")
 
-    for i, ch in enumerate(raw_args):
-        if in_string:
-            if ch == string_quote and (i == 0 or raw_args[i - 1] != "\\"):
-                in_string = False
-            continue
-
-        if ch in ('"', "'"):
-            in_string = True
-            string_quote = ch
-        elif ch == "(":
-            depth += 1
-        elif ch == ")":
-            depth -= 1
-        elif ch == "," and depth == 0:
-            left = raw_args[:i].strip()
-            right = raw_args[i + 1:].strip()
-            if not left or not right:
-                raise ValueError("Incorrect formula")
-            return left, right
-
-    raise ValueError("Incorrect formula")
+    fn = bundle.get(function_name)
+    if fn is None:
+        raise ValueError(
+            f"Function '{function_name}' does not exist in bundle '{bundle_name}'"
+        )
+    if not callable(fn):
+        raise ValueError(
+            f"Function '{function_name}' in bundle '{bundle_name}' is not callable"
+        )
+    return fn
 
 
-def _replace_sub_calls(expr: str) -> str:
-    """Rewrites SUB(a, b) into (a if a is not None else b), supports nesting."""
-    out = expr
+def _validate_formula_object(formula_obj: Any) -> dict[str, Any]:
+    """Validate a formula object and return it in a typed form."""
+    if not isinstance(formula_obj, dict):
+        raise ValueError("Formula should be an object")
 
-    while True:
-        start = out.find("SUB(")
-        if start == -1:
-            return out
+    tokens = formula_obj.get("tokens")
+    formula = formula_obj.get("formula")
 
-        i = start + 3
-        depth = 1
-        in_string = False
-        string_quote = ""
+    if not isinstance(tokens, dict):
+        raise ValueError("Formula field 'tokens' should be an object")
+    if not isinstance(formula, str) or not formula.strip():
+        raise ValueError("Formula field 'formula' should be a non-empty string")
 
-        while i < len(out):
-            ch = out[i]
-            if in_string:
-                if ch == string_quote and out[i - 1] != "\\":
-                    in_string = False
-            else:
-                if ch in ('"', "'"):
-                    in_string = True
-                    string_quote = ch
-                elif ch == "(":
-                    depth += 1
-                elif ch == ")":
-                    depth -= 1
-                    if depth == 0:
-                        break
-            i += 1
-
-        if depth != 0:
-            raise ValueError("Incorrect formula")
-
-        inner = out[start + 4: i]
-        left, right = _split_top_level_sub_args(inner)
-        replacement = f"(({left}) if ({left}) is not None else ({right}))"
-        out = out[:start] + replacement + out[i + 1:]
+    return formula_obj
 
 
-def _unwrap_total(expr: str) -> tuple[bool, str]:
-    """Extract TOTAL(inner_expr) when TOTAL is the root expression."""
-    stripped = expr.strip()
-    if not stripped.startswith("TOTAL("):
-        return False, expr
+def _build_token_maps(
+    tokens: Mapping[str, Any],
+    settings: Mapping[str, Any],
+) -> tuple[
+    dict[str, str],
+    dict[str, tuple[str, str | None]],
+    dict[str, Any],
+    dict[str, Callable[..., Any]],
+]:
+    """
+    Build token maps for datafeeds/settings/functions.
 
-    i = len("TOTAL(")
-    depth = 1
-    in_string = False
-    string_quote = ""
+    Returns:
+    - token_types: token -> type
+    - datafeed_tokens: token -> (df_name, fallback_setting_token|None)
+    - setting_tokens: token -> concrete value
+    - function_tokens: token -> callable
+    """
+    token_types: dict[str, str] = {}
+    datafeed_tokens: dict[str, tuple[str, str | None]] = {}
+    setting_tokens: dict[str, Any] = {}
+    function_tokens: dict[str, Callable[..., Any]] = {}
 
-    while i < len(stripped):
-        ch = stripped[i]
-        if in_string:
-            if ch == string_quote and stripped[i - 1] != "\\":
-                in_string = False
-        else:
-            if ch in ('"', "'"):
-                in_string = True
-                string_quote = ch
-            elif ch == "(":
-                depth += 1
-            elif ch == ")":
-                depth -= 1
-                if depth == 0:
-                    break
-        i += 1
+    for token_name, token_meta in tokens.items():
+        if not isinstance(token_name, str) or not token_name.isidentifier():
+            raise ValueError(f"Token '{token_name}' is not a valid identifier")
+        if not isinstance(token_meta, dict):
+            raise ValueError(f"Token '{token_name}' metadata should be an object")
 
-    if depth != 0 or i != len(stripped) - 1:
-        raise ValueError("Incorrect formula")
+        token_type = token_meta.get("type")
+        if token_type not in {"datafeed", "setting", "function"}:
+            raise ValueError(
+                f"Token '{token_name}' has invalid type '{token_type}'"
+            )
 
-    return True, stripped[len("TOTAL("): i]
+        token_types[token_name] = token_type
+
+    for token_name, token_meta in tokens.items():
+        token_type = token_meta["type"]
+
+        if token_type == "datafeed":
+            df_name = token_meta.get("name")
+            if not isinstance(df_name, str) or not df_name:
+                raise ValueError(
+                    f"Datafeed token '{token_name}' should have a non-empty 'name'"
+                )
+
+            fallback_token = token_meta.get("fallback")
+            if fallback_token is not None:
+                if not isinstance(fallback_token, str):
+                    raise ValueError(
+                        f"Datafeed token '{token_name}' fallback should be a token name"
+                    )
+                if token_types.get(fallback_token) != "setting":
+                    raise ValueError(
+                        f"Datafeed token '{token_name}' fallback '{fallback_token}' "
+                        "should reference a setting token"
+                    )
+
+            datafeed_tokens[token_name] = (df_name, fallback_token)
+
+        elif token_type == "setting":
+            setting_name = token_meta.get("name")
+            if not isinstance(setting_name, str) or not setting_name:
+                raise ValueError(
+                    f"Setting token '{token_name}' should have a non-empty 'name'"
+                )
+
+            if (setting_value := settings.get(setting_name)) is None:
+                raise ValueError(
+                    f"Setting '{setting_name}' referenced by token '{token_name}' is missing"
+                )
+            setting_tokens[token_name] = setting_value
+
+        elif token_type == "function":
+            function_name = token_meta.get("name")
+            bundle_name = token_meta.get("bundle")
+
+            if not isinstance(function_name, str) or not function_name:
+                raise ValueError(
+                    f"Function token '{token_name}' should have a non-empty 'name'"
+                )
+            if not isinstance(bundle_name, str) or not bundle_name:
+                raise ValueError(
+                    f"Function token '{token_name}' should have a non-empty 'bundle'"
+                )
+
+            function_tokens[token_name] = _get_function_from_bundle(
+                bundle_name, function_name
+            )
+
+    return token_types, datafeed_tokens, setting_tokens, function_tokens
 
 
 def evaluate_formula(
     df: Datafeed,
     df_value_map: DfValueMap,
     settings: Mapping[str, Any],
-    funcs: Iterable[str],
     start_rts: int,
     end_rts: int,
-    add_to_alarm_payload: Callable[[str, dict | None, int, Literal["e", "w", "i"]], None],
-    **kwargs: Any,
+    last_value: int | float,
 ) -> None:
     """
-    Evaluate a derived-datafeed formula over (start_rts, end_rts] and write results
+    Evaluate a JSON-described formula over (start_rts, end_rts] and write results
     directly into df_value_map under df.name.
 
-    Supported formula syntax examples:
-    SUB(dfs["Water total 1"], 0) + sqrt(SUB(dfs["Bdn temp"], stgs["temp_subst"]))
-    TOTAL(dfs["water_impulses"] * stgs["water_weight"])
+    Formula structure expected in df.formula:
+    {
+      "tokens": {
+        "t": {"type": "datafeed", "name": "Temp", "fallback": "t_fb"},
+        "t_fb": {"type": "setting", "name": "temp_subst"},
+        "calc": {"type": "function", "name": "calc_bdn_amount", "bundle": "steam_water"}
+      },
+      "formula": "calc(t, ... )"
+    }
 
-    Rules and behavior:
-    - Datafeed references use same-timestamp syntax: dfs["name"].
-    - Setting references use stgs["key"].
-    - SUB(value, fallback) substitutes only when value is None.
-    - TOTAL(expr) is supported only as the root wrapper; for each timestamp,
-        expr is accumulated onto the previous value.
-    - Available callable names include built-in math functions
-        (sqrt, pow, sin, cos, tan, exp, log) plus functions loaded from
-        bundles listed in funcs.
-    - Formula text is tokenized and then all whitespace in the safe expression
-        is removed before AST parsing.
+    Built-in tokens always available in namespace:
+    - tr: target datafeed time_resample (df.time_resample)
+    - lv: last_value provided by caller
 
-    Execution details:
-    - kwargs["last_value"] seeds TOTAL accumulation (defaults to 0 when missing/None).
-    - kwargs["tot_reset_value"] overrides the TOTAL reset threshold
-        (defaults to DEFAULT_TOT_RESET_VALUE).
-    - If any required dfs value is None at a timestamp, that timestamp is
-        silently skipped (no alarm, no output value).
-    - Setup/validation errors (invalid grid, missing settings/bundles, malformed
-        formula) raise ValueError.
-    - Per-timestamp evaluation errors are reported via add_to_alarm_payload with
-        warning severity and evaluation continues.
+    Runtime behavior:
+    - Pre-loop validation may raise ValueError for invalid JSON/token schema,
+      missing settings/functions, grid creation failure, or compilation failure.
+    - For each timestamp, datafeed tokens are resolved from df_value_map at ts;
+      datafeed fallback (if configured) is applied from setting token value.
+    - If at least one datafeed token is still None after fallback, the timestamp
+      is silently skipped.
     """
+    formula_obj = _validate_formula_object(df.formula)
+    token_defs = formula_obj["tokens"]
+    formula_expr: str = formula_obj["formula"]
 
-    # extract formula and remove all non-printable characters and spaces
-    formula = "".join(ch for ch in df.formula if ch.isprintable())
-    tres = df.time_resample
-    use_total, formula = _unwrap_total(formula)
+    token_types, datafeed_tokens, setting_tokens, function_tokens = _build_token_maps(
+        token_defs, settings
+    )
 
-    # Build runtime function namespace from math + requested bundles.
-    runtime_functions: dict[str, Callable[..., Any]] = dict(MATH_FUNCTIONS)
-    for bundle_name in funcs:
-        bundle = get_bundle(bundle_name)
-        for func_name, func_impl in bundle.items():
-            runtime_functions[func_name] = func_impl
-
-    raw_last_value = kwargs.get("last_value")
-    last_value = 0 if raw_last_value is None else raw_last_value
-    raw_tot_reset_value = kwargs.get("tot_reset_value")
-    tot_reset_value = DEFAULT_TOT_RESET_VALUE if raw_tot_reset_value is None else raw_tot_reset_value
-
-    # --- parse formula to find referenced datafeeds, functions and settings ---
-    # find all occurrences like dfs["Some name"] and stgs["key"]
-    df_names: set[str] = set(re.findall(r'dfs\["([^\"]+)"\]', formula))
-    setting_names: set[str] = set(re.findall(r'stgs\["([^\"]+)"\]', formula))
-
-    # create evaluation grid based on derived df time_resample
-    try:
-        grid = create_grid(start_rts + df.time_resample, end_rts, df.time_resample)
-    except Exception as e:
-        raise ValueError(f"Unable to create grid, {e}")
-
-    # prepare replacements for tokens in formula to create a safe expression
-    # replace dfs["Name"] -> __DF_<idx>
-    repl_map: dict[str, str] = {}
-    df_token_map: dict[str, str] = {}
-    for i, name in enumerate(sorted(df_names)):
-        token = f"__DF_{i}"
-        repl_map[f'dfs["{name}"]'] = token
-        df_token_map[token] = name
-
-    # replace stgs["key"] -> __SET_<idx>
-    set_map: dict[str, Any] = {}
-    for i, name in enumerate(sorted(setting_names)):
-        token = f"__SET_{i}"
-        repl_map[f'stgs["{name}"]'] = token
-        # pull value from provided settings dict (top-level)
-        if (sv := settings.get(name)) is None:
-            raise ValueError(f"Setting '{name}' referenced in formula is missing")
-        set_map[token] = sv
-
-    # build the safe expression string by replacing long tokens
-    safe_expr = formula
-    # sort by length to avoid partial replacement issues
-    for k in sorted(repl_map.keys(), key=lambda x: -len(x)):
-        safe_expr = safe_expr.replace(k, repl_map[k])
-
-    # convert SUB(value1, value2) syntax into Python expression
-    safe_expr = _replace_sub_calls(safe_expr)
-
-    # At this stage, dfs/stgs names are already tokenized, so global whitespace
-    # removal cannot corrupt quoted datafeed/setting names.
-    safe_expr = re.sub(r"\s+", "", safe_expr)
+    # Formula can contain whitespace/newlines from JSON formatting; AST handles it,
+    # but we normalize for predictable debug output.
+    safe_expr = "".join(ch for ch in formula_expr if ch.isprintable())
 
     try:
         expr_ast = ast.parse(safe_expr, mode="eval")
         _Validator().visit(expr_ast)
-        compiled = compile(expr_ast, "<formula>", mode="eval")
-    except Exception:
-        # parsing/validation failure almost always means the formula is malformed
-        raise ValueError(f"Incorrect formula; safe_expr={safe_expr!r}")
+    except Exception as e:
+        raise ValueError(f"Incorrect formula, {e}")
 
-    # evaluate expression for each point in the grid
+    # Ensure all identifiers used in expression are known tokens or built-ins.
+    used_names = {node.id for node in ast.walk(expr_ast) if isinstance(node, ast.Name)}
+    allowed_names = set(token_types.keys()) | set(MATH_FUNCTIONS.keys()) | {"tr", "lv"}
+    unknown_names = used_names - allowed_names
+    if unknown_names:
+        raise ValueError(
+            "Unknown token(s) in formula: " + ", ".join(sorted(unknown_names))
+        )
+
+    compiled = compile(expr_ast, "<formula>", mode="eval")
+
+    grid = create_grid(start_rts + df.time_resample, end_rts, df.time_resample)
+
     for ts in grid:
         line = df_value_map.get(ts, {})
 
-        # if any required df value is missing, skip this timestamp silently
-        if any(line.get(name) is None for name in df_names):
+        namespace: dict[str, Any] = {
+            "__builtins__": None,
+            "tr": df.time_resample,
+            "lv": last_value,
+            **MATH_FUNCTIONS,
+            **function_tokens,
+            **setting_tokens,
+        }
+
+        has_missing_data = False
+        for token_name, (df_name, fallback_token) in datafeed_tokens.items():
+            value = line.get(df_name)
+            if value is None and fallback_token is not None:
+                value = setting_tokens[fallback_token]
+            namespace[token_name] = value
+            if value is None:
+                has_missing_data = True
+
+        if has_missing_data:
             continue
 
-        # prepare variable namespace for eval: map tokens, settings and available funcs
-        namespace: dict[str, Any] = {"__builtins__": None, "tres": tres, **runtime_functions}
+        result = eval(compiled, namespace)
 
-        # fill same-timestamp datafeed values
-        for token, name in df_token_map.items():
-            namespace[token] = line.get(name)
+        if ts not in df_value_map:
+            df_value_map[ts] = {}
+        df_value_map[ts][df.name] = result
 
-        # fill settings tokens
-        for token, val in set_map.items():
-            namespace[token] = val
-        try:
-            # eval with restricted globals only (no builtins)
-            result = eval(compiled, namespace)
-            if use_total:  # if this is a totalizer created internally, then its value should be restricted
-                if result + last_value > tot_reset_value:
-                    last_value = 0
-                result = last_value + result
-        except Exception as e:
-            add_to_alarm_payload(f"Error while evaluating formula for {df.name}: {e}", None, ts, "w")
-        else:
-            # store result directly in the provided value map under derived df's name
-            if ts not in df_value_map:
-                df_value_map[ts] = {}
-            df_value_map[ts][df.name] = result
-            if result is not None:
-                last_value = result
+        if result is not None:
+            last_value = result

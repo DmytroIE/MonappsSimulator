@@ -1,4 +1,4 @@
-from typing import Dict, Iterable, Self
+from typing import Dict, Self
 from classes.object_manager import ObjectManager
 from common.constants import (
     StatusTypes,
@@ -39,7 +39,6 @@ class Application:
         time_status_stale: int = 86400000 * 15,
         time_curr_state_stale: int = 600000,
         time_health_error: int = 600000,
-        func_bundles: Iterable | None = None,
     ) -> None:
 
         self.type = type
@@ -52,7 +51,6 @@ class Application:
         self.cursor_ts = cursor_ts
         self.is_enabled = False
         self.func_version = func_version
-        self.func_bundles = func_bundles if func_bundles is not None else set()
 
         self.status = StatusTypes.UNDEFINED
         self.curr_state = CurrStateTypes.UNDEFINED
