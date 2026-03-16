@@ -3,9 +3,9 @@ from functools import partial
 from classes.application import Application
 from classes.datafeed import Datafeed
 from classes.dfreading import DfReading
-from utils.ts_utils import create_dt_from_ts_ms, create_grid
+from utils.ts_utils import create_grid
 from common.complex_types import DerivedDfReadingMap, UpdateMap
-from common.constants import STATUS_FIELD_NAME, CURR_STATE_FIELD_NAME, CurrStateTypes, HealthGrades
+from common.constants import STATUS_FIELD_NAME, CURR_STATE_FIELD_NAME, CurrStateTypes
 from utils.alarm_utils import add_to_alarm_payload
 
 from app_functions.helpers.utils.app_func_utils import get_end_rts, get_df_value_map, get_df_maps_from_app
@@ -19,7 +19,7 @@ from app_functions.helpers.utils.totalaizer_utils import (
 )
 from app_functions.helpers.utils.app_func_settings_bundle import AppFuncSettingsBundle
 from app_functions.helpers.utils.df_utils import get_df_map_of_series, get_last_df_reading
-from app_functions.helpers.utils.evaluate_formula import evaluate_formula
+from app_functions.helpers.utils.evaluate_formula import evaluate_formula, get_compiled_formula_cache_info
 
 from .schemas import AppState, AppFuncSettingsModel as AfsModel
 
@@ -243,7 +243,7 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
                         derived_df_reading_map[df.name]["new_df_readings"].append(dfr)
                         if df.data_type.is_totalizer:
                             df_with_formula_row["last_value"] = value
-                        print(f"Created tot {value} at time {create_dt_from_ts_ms(ts)} - {ts}")
+                        # print(f"Created tot {value} at time {create_dt_from_ts_ms(ts)} - {ts}")
 
         # get the internal state to use it in the next iteration
         st_automata_int_state = st_automata.get_internal_state()

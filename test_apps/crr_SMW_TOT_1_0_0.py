@@ -195,15 +195,13 @@ df_bdn_water_mass_1 = Datafeed(
     time_resample=60000,
     formula={
         "tokens": {
-            "temp": {"type": "datafeed", "name": "Bdn temp Boiler 1", "fallback": "temp_subst"},
+            "temp": {"type": "datafeed", "name": "Bdn temp Boiler 1", "fallback": "bdn_temp_1_subst"},
             "valve_state": {"type": "datafeed", "name": "Bdn valve state Boiler 1"},
             "kvs": {"type": "setting", "name": "bdn_valve_kvs_boiler_1"},
-            "temp_subst": {"type": "setting", "name": "bdn_temp_1_subst"},
             "tot_res": {"type": "setting", "name": "bdn_tot_boiler_1_res_val"},
             "calc_bdn": {"type": "function", "name": "calc_bdn_amount", "bundle": "steam_water"},
-            "total": {"type": "function", "name": "totalize", "bundle": "tot_utils"},
         },
-        "formula": "total(lv, calc_bdn(temp, valve_state, kvs, tr), tot_res)",
+        "formula": "total(calc_bdn(temp, valve_state, kvs, tr), tot_res)",
     },
 )
 df_bdn_water_mass_1.save()

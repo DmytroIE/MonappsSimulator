@@ -64,6 +64,14 @@ datatype_mass_total = DataType(
 )
 datatype_mass_total.save()
 
+datatype_energy = DataType("Energy", agg_type=DataAggTypes.SUM, var_type=VariableTypes.CONTINUOUS, is_totalizer=False)
+datatype_energy.save()
+
+datatype_energy_total = DataType(
+    "Energy total", agg_type=DataAggTypes.SUM, var_type=VariableTypes.CONTINUOUS, is_totalizer=True
+)
+datatype_energy_total.save()
+
 kg_meas_unit = MeasUnit(
     "Kilogram", "kg", [datatype_mass, datatype_mass_total]
 )  # imitation of 'many to many' relationship
@@ -76,5 +84,20 @@ datatype_percentage.save()
 
 percent_meas_unit = MeasUnit(
     "Percent", "%", [datatype_percentage]
-)  # imitation of 'many to many' relationship
+)
 percent_meas_unit.save()
+
+kj_meas_unit = MeasUnit(
+    "Kilojoule", "kJ", [datatype_energy, datatype_energy_total]
+)
+kj_meas_unit.save()
+
+datatype_mass_flow = DataType(
+    "Mass flow", agg_type=DataAggTypes.AVG, var_type=VariableTypes.CONTINUOUS, is_totalizer=False
+)
+datatype_mass_flow.save()
+
+kgh_meas_unit = MeasUnit(
+    "Kilogram per hour", "kg/h", [datatype_mass_flow]
+)
+kgh_meas_unit.save()

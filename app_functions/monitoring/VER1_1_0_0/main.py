@@ -6,9 +6,8 @@ from classes.datafeed import Datafeed
 from classes.dfreading import DfReading
 from common.complex_types import DerivedDfReadingMap, UpdateMap
 from app_functions.helpers.utils.app_func_utils import get_end_rts, get_df_value_map, get_df_maps_from_app
-from app_functions.helpers.utils.df_utils import get_last_df_reading
+from app_functions.helpers.utils.df_utils import get_last_df_reading 
 from utils.ts_utils import create_grid
-from utils.alarm_utils import add_to_alarm_payload
 from app_functions.helpers.utils.app_func_settings_bundle import AppFuncSettingsBundle
 from app_functions.helpers.utils.evaluate_formula import evaluate_formula
 
@@ -47,7 +46,7 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
 
     settings_bundle = AppFuncSettingsBundle[AfsModel](app.settings, AfsModel)
 
-    df_value_map = get_df_value_map(native_df_map.values(), start_rts, end_rts)
+    df_value_map = get_df_value_map(df_map.values(), start_rts-app.time_resample, end_rts)
 
     # prepare a map for datafeeds with formulas
     df_with_formula_map = {}
@@ -70,8 +69,6 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
 
         app_settings = settings_bundle.get_settings(rts)
 
-        add_to_alarm_payload_part = partial(add_to_alarm_payload, one_step_alarm_payload)
-
         for df_with_formula_row in df_with_formula_map.values():
             df: Datafeed = df_with_formula_row["df"]
             last_value = df_with_formula_row["last_value"]
@@ -79,12 +76,10 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
                 df,
                 df_value_map,
                 app_settings.model_dump(),
-                app.func_bundles,
                 rts - app.time_resample,
                 rts,
-                add_to_alarm_payload_part,
-                last_value=last_value,
-                tot_reset_value=app_settings.int_tot_reset_value,
+                last_value,
+
             )
 
         # update at the end of the cycle
