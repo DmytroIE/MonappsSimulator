@@ -3,11 +3,11 @@ import random
 import time
 
 from app_functions.helpers.utils.app_func_utils import get_df_maps_from_app
-from common.constants import CURR_STATE_FIELD_NAME, STATUS_FIELD_NAME, CurrStateTypes, HealthGrades, settings
+from common.constants import CURR_STATE_FIELD_NAME, STATUS_FIELD_NAME, CurrStateTypes, settings
 from classes.application import Application
 from classes.dfreading import DfReading
 
-from app_functions.helpers.utils.app_func_settings_bundle import AppFuncSettingsBundle
+from app_functions.helpers.classes.app_func_settings_bundle import AppFuncSettingsBundle
 from utils.alarm_utils import add_to_alarm_payload
 from .schemas import AppFuncSettingsModel as AfsModel
 

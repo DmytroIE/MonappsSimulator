@@ -10,7 +10,7 @@ from test_apps.ready_to_use_items import (
     datatype_clicks_total,
     datatype_binary_state,
     datatype_mass_flow,
-    kgh_meas_unit,
+    tph_meas_unit,
 )
 
 
@@ -68,7 +68,7 @@ app_type.save()
 app_time_resample = 60000
 app = Application(
     type=app_type,
-    app_settings={"click_weight": 0.1},
+    app_settings={"click_weight": 10},
     time_resample=app_time_resample,
     func_version="VER1 1.0.0",
     cursor_ts=get_floored_now_ts(app_time_resample),
@@ -122,14 +122,14 @@ df_water_mass_flow = Datafeed(
     parent=app,
     datastream=None,
     data_type=datatype_mass_flow,
-    meas_unit=kgh_meas_unit,
+    meas_unit=tph_meas_unit,
     time_resample=60000,
     formula={
         "tokens": {
             "ctot": {"type": "datafeed", "name": "Clicks total"},
             "cw": {"type": "setting", "name": "click_weight"},
         },
-        "formula": "diff(ctot)*cw",
+        "formula": "diff(ctot)*cw/tr*3600",
     },
 )
 df_water_mass_flow.save()

@@ -1,4 +1,4 @@
-from typing import Self
+from typing import Any, Self
 from classes.application import Application
 from classes.datastream import Datastream
 from classes.datatype import DataType, MeasUnit
@@ -21,7 +21,7 @@ class Datafeed:
         is_aug_on: bool = True,
         aug_policy: AugmentationPolicy = AugmentationPolicy.TILL_LAST_DF_READING,
         time_resample: int | None = None,
-        formula: dict | None = None,
+        formula: dict[str, Any] | None = None,
     ) -> None:
         self.name = name
         self.data_type = data_type

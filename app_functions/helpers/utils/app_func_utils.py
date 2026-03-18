@@ -113,12 +113,20 @@ def update_df_value_map(df_value_map: DfValueMap, datafeeds: Iterable[Datafeed],
     df_value_map = dict(sorted(df_value_map.items()))
 
 
-def add_readings_to_df_value_map(df_value_map: DfValueMap, datafeed: Datafeed, readings: Iterable[DfReading]) -> None:
+def add_readings_to_df_value_map(df_value_map: DfValueMap, readings: Iterable[DfReading]) -> None:
     """Adds readings of a datafeed to the 'df_value_map'"""
     for dfr in readings:
         if dfr.time not in df_value_map:
             df_value_map[dfr.time] = {}
+        datafeed = dfr.datafeed
         df_value_map[dfr.time][datafeed.name] = dfr.value
+
+
+def add_value_to_df_value_map(df_value_map: DfValueMap, df_name: str, ts: int, value: float | int) -> None:
+    """Adds a value of a datafeed to the 'df_value_map' for a given timestamp"""
+    if ts not in df_value_map:
+        df_value_map[ts] = {}
+    df_value_map[ts][df_name] = value
 
 
 def merge_df_value_maps(df_value_map1: DfValueMap, df_value_map2: DfValueMap) -> DfValueMap:

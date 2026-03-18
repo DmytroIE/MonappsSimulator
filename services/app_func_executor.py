@@ -128,12 +128,11 @@ class AppFuncExecutor:
 
     def run_exec_routine(self):
         logger.debug("Starting app function")
-        if isinstance(
-            self.app.state, str
-        ):  # NOTE: --> added just to check if the state is serializable, remove in the 'monapps'
-            self.app.state = json.loads(
-                self.app.state
-            )  # NOTE: --> added just to check if the state is serializable, remove in the 'monapps'
+
+        self.app.state = json.loads(
+            self.app.state_json
+        )  # NOTE: --> added just to check if the state is serializable, remove in the 'monapps'
+
         try:
             self.check_df_schema()
             self.app_func(self.app, self.derived_df_reading_map, self.update_map)
@@ -190,8 +189,7 @@ class AppFuncExecutor:
         logger.debug(s)
 
     def update_catching_up(self):
-        if (is_catching_up := self.update_map.get("is_catching_up")) is None:
-            return
+        is_catching_up = self.update_map.get("is_catching_up")
 
         if not set_attr_if_cond(is_catching_up, "!=", self.app, "is_catching_up"):
             return
@@ -212,15 +210,13 @@ class AppFuncExecutor:
             logger.debug(s)
 
     def update_cursor_pos(self):
-        if (ts := self.update_map.get("cursor_ts")) is None:
-            return
+        ts = self.update_map.get("cursor_ts")
         cursor_ts = ts
         if set_attr_if_cond(cursor_ts, ">", self.app, "cursor_ts"):
             logger.debug(f"Cursor position was updated -> {cursor_ts}")
 
     def update_alarms(self):
-        if (alarm_payload := self.update_map.get("alarm_payload")) is None:
-            return
+        alarm_payload = self.update_map.get("alarm_payload")
         for ts, row in alarm_payload.items():
             error_dict = row.get("e")
             upd_error_map, _ = update_alarm_map(self.app, error_dict, ts, "errors", add_to_log=add_to_app_log)
@@ -240,7 +236,7 @@ class AppFuncExecutor:
             return
         set_attr_if_cond(state, "!=", self.app, "state")
 
-        self.app.state = json.dumps(
+        self.app.state_json = json.dumps(
             state
         )  # NOTE: --> added just to check if the state is serializable, remove in the 'monapps'
 
@@ -282,9 +278,9 @@ class AppFuncExecutor:
                 logger.debug(s)
 
     def eval_health_from_app(self):
-        if (h := self.update_map.get("health")) is not None:
-            # HealthGrades.OK is not used for this type of health
-            self.health_from_app = h if h != HealthGrades.OK else HealthGrades.UNDEFINED
+        h = self.update_map.get("health")
+        # HealthGrades.OK is not used for this type of health
+        self.health_from_app = h if h != HealthGrades.OK else HealthGrades.UNDEFINED
 
     def eval_cs_health(self):
         # health based on the cursor timestamp

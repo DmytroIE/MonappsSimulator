@@ -97,7 +97,12 @@ datatype_mass_flow = DataType(
 )
 datatype_mass_flow.save()
 
-kgh_meas_unit = MeasUnit(
+kgph_meas_unit = MeasUnit(
     "Kilogram per hour", "kg/h", [datatype_mass_flow]
 )
-kgh_meas_unit.save()
+kgph_meas_unit.save()
+
+tph_meas_unit = MeasUnit(
+    "Tonne per hour", "t/h", [datatype_mass_flow]
+)
+tph_meas_unit.save()
