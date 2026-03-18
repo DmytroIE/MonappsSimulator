@@ -129,7 +129,7 @@ class AppFunction(Generic[T]):
                 for df_name, value in row.items():
                     if df_name in self.derived_df_map:
                         df = self.derived_df_map[df_name]
-                        dfr = DfReading(time=ts, value=value, datafeed=df, restored=False)
+                        dfr = DfReading(time=ts, value=value, datafeed=df)
                         self.derived_df_reading_map[df_name]["new_df_readings"].append(dfr)
                         if df_name in self.df_with_formula_map:
                             self.df_with_formula_map[df_name]["last_value"] = value

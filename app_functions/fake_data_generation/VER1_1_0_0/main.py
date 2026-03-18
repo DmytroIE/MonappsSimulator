@@ -94,10 +94,10 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
 
         # update at the end of the cycle
         if curr_state is not None:
-            dfr = DfReading(time=rts, value=curr_state, datafeed=curr_state_df, restored=False)
+            dfr = DfReading(time=rts, value=curr_state, datafeed=curr_state_df)
             derived_df_reading_map[CURR_STATE_FIELD_NAME]["new_df_readings"].append(dfr)
         if status is not None:
-            dfr = DfReading(time=rts, value=status, datafeed=status_df, restored=False)
+            dfr = DfReading(time=rts, value=status, datafeed=status_df)
             derived_df_reading_map[STATUS_FIELD_NAME]["new_df_readings"].append(dfr)
 
         update_map["cursor_ts"] = rts

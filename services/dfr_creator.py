@@ -183,7 +183,7 @@ class DfrCreator:
 
                 # get some native df readings 'from the past' to have enough readings for spline building
                 last_nat_dfrs_from_prev_period = DfReading.objects.filter(
-                    datafeed__id=self.df.pk, time__lte=self.start_rts, restored=False
+                    datafeed__id=self.df.pk, time__lte=self.start_rts, num_dsrs__gt=0
                 ).order_by("-time")[:3]
                 # Django doesn't allow negative indexes in slicing
                 # that's why we use '-time' and then 'reversed'
@@ -276,7 +276,7 @@ class DfrCreator:
                             DfReading.objects.filter(
                                 datafeed__id=self.df.pk,
                                 time__lte=self.start_rts,
-                                restored=False,
+                                num_dsrs__gt=0,
                             )
                             .order_by("time")
                             .last()

@@ -252,7 +252,7 @@ class GraphWidget(QWidget):
                     dfr_null_tss.append(t + df.time_resample / divider)
                     dfr_null_vals.append(y_min)
 
-                if dfr.restored and v is not None:
+                if dfr.num_dsrs == 0 and df.datastream is not None:
                     dfr_res_tss.append(t)
                     dfr_res_vals.append(v)
 
