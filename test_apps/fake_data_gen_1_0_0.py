@@ -26,7 +26,7 @@ app = Application(
     type=app_type,
     app_settings=app_settings,
     time_resample=time_resample,
-    func_version="1.0.0",
+    func_version="VER1 1.0.0",
     time_status_stale=240000,
     time_curr_state_stale=120000,
     time_health_error=120000,
@@ -50,3 +50,10 @@ df_status = Datafeed(
     meas_unit=None,
 )
 df_status.save()
+
+graph_settings = {
+    "y_min": 0,
+    "y_max": 10,
+    "num_grid_counts": 50,
+    "time_unit": "1 min",
+}

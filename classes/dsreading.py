@@ -7,27 +7,28 @@ class AnyDsReading:
     def __init__(self, time: int, value: float, datastream: Datastream) -> None:
         self.pk = (time, datastream.id)
         self.time = time
-        self.db_value = float(value)
         self.datastream = datastream
         self.short_name = ""
+        self.value = value
+        self.db_value = float(self.value)
 
     @property
     def value(self) -> float | int:
-        if self.datastream.is_value_interger:
+        if self.datastream.is_value_integer:
             return int(self.db_value)
         else:
             return self.db_value
 
     @value.setter
     def value(self, value: float | int) -> None:
-        if self.datastream.is_value_interger:
+        if self.datastream.is_value_integer:
             self.db_value = round(value, 0)
         else:
             self.db_value = value
 
     def __repr__(self):
         dt = datetime.fromtimestamp(self.time / 1000, tz=timezone.utc)
-        if self.datastream.is_value_interger:
+        if self.datastream.is_value_integer:
             return f"{self.short_name} ds:{self.datastream.pk} ts:{dt} val: {self.value}"
         else:
             return f"{self.short_name} ds:{self.datastream.pk} ts:{dt} val: {self.value:.3f}"

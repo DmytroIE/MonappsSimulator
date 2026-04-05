@@ -20,6 +20,12 @@ class OccurrenceClusterList(list):
             return
         self.append([value, 1])
 
+    def create_copy_for_appending(self) -> "OccurrenceClusterList":
+        copy = self.copy()
+        if len(copy) > 0:
+            copy[-1] = copy[-1].copy()
+        return type(self)(copy)
+
     def count_occurrences_of_value(self, value: int | str) -> int:
         num = 0
         for item in self:

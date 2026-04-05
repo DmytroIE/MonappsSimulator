@@ -1,4 +1,4 @@
-from typing import Self
+from typing import Any, Self
 from classes.application import Application
 from classes.datastream import Datastream
 from classes.datatype import DataType, MeasUnit
@@ -21,6 +21,7 @@ class Datafeed:
         is_aug_on: bool = True,
         aug_policy: AugmentationPolicy = AugmentationPolicy.TILL_LAST_DF_READING,
         time_resample: int | None = None,
+        formula: dict[str, Any] | None = None,
     ) -> None:
         self.name = name
         self.data_type = data_type
@@ -35,14 +36,18 @@ class Datafeed:
         self.parent = parent
         self.datastream = datastream
 
-        self.db_time_resample = None
-        if datastream is not None and time_resample is not None:
-            # native datafeeds can have 'time_resample' smaller than the app 'time_resample',
-            # but it should be a multiple of the app 'time_resample'
+        if time_resample is not None:
+            # datafeeds can have 'time_resample' smaller than the app 'time_resample',
+            # but it should be a divisor of the app 'time_resample'
             modulo = parent.time_resample % time_resample
             if modulo > 0:
                 raise ValueError("App time resample should be a multiple of the df time resample")
-            self.db_time_resample = time_resample
+        self.db_time_resample = time_resample
+        if datastream is None:
+            # only derived dfs can have formula
+            self.formula = formula if formula is not None else {}
+        else:
+            self.formula = {}
 
         Datafeed.id_counter += 1
         self.id = Datafeed.id_counter
@@ -55,7 +60,7 @@ class Datafeed:
         return f"Datafeed {self.pk} {self.name}"
 
     @property
-    def is_value_interger(self) -> bool:
+    def is_value_integer(self) -> bool:
         return self.data_type.var_type != VariableTypes.CONTINUOUS
 
     @property

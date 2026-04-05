@@ -34,15 +34,16 @@ ds_temp_2.save()
 
 app_type = AppType(
     name="Stall detection",
-    func_name="stall_detection_by_two_temps",
+    func_name="stall_detection",
 )
 app_type.save()
 
 app_settings = {
     "delta_temp": 10.0,
     "temp_in_threshold": 50.0,
-    "cs_trans_counts": 3,
-    "undef_cond": {
+    "temp_diff_error_threshold": 0.1,
+    "cs_delay_trans_counts": 3,
+    "undef_cid": {
         "total_occs": 6,
         "ok_cond": "==",
         "num_of_ok_occs": 0,
@@ -51,7 +52,7 @@ app_settings = {
         "undef_cond": ">=",
         "num_of_undef_occs": 6,
     },
-    "ok_from_warn_cond": {
+    "ok_from_warn_cid": {
         "total_occs": 6,
         "num_of_undef_occs": 0,
         "undef_cond": ">=",
@@ -60,7 +61,7 @@ app_settings = {
         "num_of_warn_occs": 0,
         "warn_cond": "==",
     },
-    "warn_cond": {
+    "warn_cid": {
         "total_occs": 5,
         "ok_cond": ">=",
         "num_of_ok_occs": 0,
@@ -69,7 +70,7 @@ app_settings = {
         "undef_cond": ">=",
         "num_of_undef_occs": 0,
     },
-    "ok_from_undef_cond": {
+    "ok_from_undef_cid": {
         "total_occs": 4,
         "ok_cond": ">=",
         "num_of_ok_occs": 2,
@@ -78,14 +79,19 @@ app_settings = {
         "undef_cond": ">=",
         "num_of_undef_occs": 0,
     },
+    # "changes": {
+    #     "1742480400000": {
+    #             "delta_temp": 15.0,
+    #             "temp_in_threshold": 100.0,
+    #     }
+    # }
 }
 
 app = Application(
     type=app_type,
     app_settings=app_settings,
     time_resample=60000,
-    func_version="1.0.0",
-    # cursor_ts=1742479200000,
+    func_version="TX2 1.0.0",
     cursor_ts=1742478600000
 )
 app.save()
@@ -97,6 +103,7 @@ df_temp_inlet = Datafeed(
     data_type=datatype_temp,
     meas_unit=degC_meas_unit,
     is_rest_on=True,
+    time_resample=30000,
 )
 df_temp_inlet.save()
 
@@ -107,7 +114,6 @@ df_temp_outlet = Datafeed(
     data_type=datatype_temp,
     meas_unit=degC_meas_unit,
     is_rest_on=True,
-    time_resample=30000,
 )
 df_temp_outlet.save()
 
@@ -127,3 +133,10 @@ df_status = Datafeed(
     meas_unit=None,
 )
 df_status.save()
+
+graph_settings = {
+    "y_min": 50,
+    "y_max": 150,
+    "num_grid_counts": 100,
+    "time_unit": "1 min",
+}

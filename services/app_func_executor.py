@@ -4,10 +4,11 @@ import json
 from collections.abc import Iterable
 from typing import Literal
 
+from utils.app_func_utils import get_df_maps_from_app
 from classes.application import Application
 from classes.dfreading import DfReading
-from common.constants import HealthGrades, STATUS_FIELD_NAME, CURR_STATE_FIELD_NAME, IntegrityError
-from common.complex_types import AppFunction
+from common.constants import DataAggTypes, HealthGrades, STATUS_FIELD_NAME, CURR_STATE_FIELD_NAME, IntegrityError
+from common.complex_types import AppFuncBundle, DerivedDfReadingMap, UpdateMap
 from services.dfr_creator import DfrCreator
 from utils.ts_utils import create_now_ts_ms
 from utils.sequence_utils import find_instance_with_max_attr
@@ -16,34 +17,58 @@ from utils.update_utils import set_attr_if_cond
 from services.alarm_log import add_to_alarm_log
 from services.app_log import add_to_app_log
 
-logger = logging.getLogger("#app_func_executor")
+logger = logging.getLogger("#appf_exec")
 
 
 class AppFuncExecutor:
-    def __init__(self, app: Application, app_func: AppFunction):
+    def __init__(self, app: Application, app_func_bundle: AppFuncBundle):
         self.app = app
-        self.app_func = app_func
-        self.update_map = {}
+        self.app_func = app_func_bundle["function"]
+        self.df_schema = app_func_bundle["df_schema"]
+        self.update_map: UpdateMap = {
+            "health": HealthGrades.OK,
+            "alarm_payload": {},
+            "is_catching_up": False,
+            "cursor_ts": app.cursor_ts,
+        }
+        self.derived_df_reading_map: DerivedDfReadingMap = {}
         self.excep_health = HealthGrades.UNDEFINED
         self.health_from_app = HealthGrades.UNDEFINED
         self.cs_health = HealthGrades.UNDEFINED  # health based on the cursor timestamp
+        self.logger = self.create_extended_logger()
+
+    def create_extended_logger(self):
+        class ExtendedLogger(logging.Logger):
+            def __init__(self, name, app_id):
+                super().__init__(name)
+                self.app_id = app_id
+
+            def debug(self, msg, *args, **kwargs):
+                logger.debug(f"App {self.app_id}: {msg}", *args, **kwargs)
+
+            def info(self, msg, *args, **kwargs):
+                logger.info(f"App {self.app_id}: {msg}", *args, **kwargs)
+
+            def warning(self, msg, *args, **kwargs):
+                logger.warning(f"App {self.app_id}: {msg}", *args, **kwargs)
+
+            def error(self, msg, *args, **kwargs):
+                logger.error(f"App {self.app_id}: {msg}", *args, **kwargs)
+
+        return ExtendedLogger(logger.name, self.app.id)
 
     def execute(self):
-
+        self.logger.info("-----Start-----")
         # At first, all df readings are to be prepared
         # If there are too many df readings, the function 'prepare_df_readings'
         # will prepare them in batches
         if self.app.is_enabled:
             is_at_least_one_df_catching_up = self.create_df_readings()
             if is_at_least_one_df_catching_up:
-                # logger.debug("Catching up started")
-                # self.app.is_catching_up = True
-                # set_attr_if_cond(True, "!=", self.app, "is_catching_up")
                 self.update_map["is_catching_up"] = True
                 self.update_catching_up()
                 self.app.save(update_fields=self.app.update_fields)
-                logger.debug("App is catching up with df readings")
-                logger.debug("--------------------END--------------------")  # NOTE: --> remove in 'monapps'
+                self.logger.info("Catching up with df readings")
                 return
 
         # when all df readings are prepared it is possible to execute the app function
@@ -55,82 +80,117 @@ class AppFuncExecutor:
 
         for nat_df in native_df_qs:
             try:
-                logger.info(f"Create readings for df {nat_df.pk} {nat_df.name}")
                 creator = DfrCreator(self.app, nat_df)
                 creator.execute()
                 if creator.check_catching_up():
                     is_at_least_one_df_catching_up = True
-            except Exception:
-                logger.error(f"Error while creating dfrs for {nat_df.pk} {nat_df.name}, {traceback.format_exc(-1)}")
+            except Exception as e:
+                self.excep_health = HealthGrades.ERROR
+                tb_list = traceback.extract_tb(e.__traceback__)
+                original_frame = tb_list[-1]
+                file = original_frame.filename
+                line = original_frame.lineno
+                add_to_alarm_log("ERROR", f"Error while creating dfrs for {nat_df.pk} {nat_df.name}", instance=self.app)
+                self.logger.error(f"Error while creating dfrs for {nat_df.pk} {nat_df.name}, file: {file}, line: {line}")
 
         return is_at_least_one_df_catching_up
 
-    def run_app_func(self):  # will be wrapped in transaction.atomic in Django
+    # the call of this function is to be wrapped in transaction.atomic in Django
+    def run_app_func(self):
+        # In Django app, there will be
+        # self.app = Application.objects.select_for_update().get(pk=self.app.pk)
+        # self.task = PeriodicTask.objects.select_for_update().get(pk=self.task.pk)
         if self.app.is_enabled:
+            self.run_exec_routine()
             try:
-                logger.debug("Starting app function")
-                self.run_exec_routine()
-                logger.debug("App function was executed")
+                self.save_derived_readings()
             except IntegrityError:
-                logger.error("An attempt to rewrite existing df readings detected")
+                s = "An attempt to rewrite existing df readings detected"
+                add_to_alarm_log("ERROR", s, instance=self.app)
+                self.logger.error(s)
                 self.excep_health = HealthGrades.ERROR
-            except Exception:
-                self.excep_health = HealthGrades.ERROR
-                logger.error(f"Error happened while executing app function, {traceback.format_exc(-1)}")
+                self.update_map["is_catching_up"] = False
+            else:
+                self.update_cursor_pos()
+                self.update_alarms()
+                self.update_state()
+            self.update_catching_up()
 
-        logger.debug("Update other parameters")
         self.run_post_exec_routine()
-        logger.debug("--------------------END--------------------")  # NOTE: --> remove in the 'monapps'
+
+    def check_df_schema(self):
+        df_map = get_df_maps_from_app(self.app)
+        for df_name, schema in self.df_schema.items():
+            if df_name.find("<str>") != -1 or df_name.find("<int>") != -1:
+                df_name_prefix = df_name.split("<")[0]
+                has = list(filter(lambda name: name.startswith(df_name_prefix), df_map.keys()))
+                if not has:
+                    raise Exception(f"No datafeed with prefix '{df_name_prefix}' found")
+                # if there are several datafeeds with the same prefix, it will be checked later in the app function
+                continue
+            elif df_name not in df_map:
+                raise Exception(f"Datafeed '{df_name}' is not found among app datafeeds")
+            df = df_map[df_name]
+            var_type = schema["var_type"]
+            agg_type = schema["agg_type"]
+            if df.data_type.var_type != var_type:
+                raise Exception(f"Datafeed '{df_name}' has wrong variable type")
+            if df.data_type.agg_type != agg_type:
+                raise Exception(f"Datafeed '{df_name}' has wrong aggregation type")
+            if agg_type == DataAggTypes.SUM:
+                is_totalizer = schema.get("is_totalizer")
+                if is_totalizer is not None and is_totalizer != df.data_type.is_totalizer:
+                    raise Exception(f"Datafeed '{df_name}' should {"" if is_totalizer else "not"} be a totalizer")
 
     def run_exec_routine(self):
-        native_df_qs = self.app.get_native_df_qs()
-        native_df_map = {df.name: df for df in native_df_qs}
-        derived_df_qs = self.app.get_derived_df_qs()
-        derived_df_map = {df.name: df for df in derived_df_qs}
-        if isinstance(
-            self.app.state, str
-        ):  # NOTE: --> added just to check if the state is serializable, remove in the 'monapps'
-            self.app.state = json.loads(
-                self.app.state
-            )  # NOTE: --> added just to check if the state is serializable, remove in the 'monapps'
 
-        derived_df_readings, self.update_map = self.app_func(self.app, native_df_map, derived_df_map)
+        self.app.state = json.loads(
+            self.app.state_json
+        )  # NOTE: --> added just to check if the state is serializable, remove in the 'monapps'
 
-        self.update_catching_up()
+        try:
+            self.check_df_schema()
+            self.app_func(self.app, self.derived_df_reading_map, self.update_map, self.logger)
+        except Exception as e:
+            self.excep_health = HealthGrades.ERROR
+            self.update_map["is_catching_up"] = False
+            tb_list = traceback.extract_tb(e.__traceback__)
+            original_frame = tb_list[-1]
+            file = original_frame.filename
+            line = original_frame.lineno
+            add_to_alarm_log("ERROR", f"Error while executing app function, {e}", instance=self.app)
+            self.logger.error(f"Error happened while executing app function, {e}, file: {file}, line: {line}")
+        else:
+            self.logger.info("App function executed")
 
-        for df_row in derived_df_readings.values():
+    # the call of this function is to be wrapped in transaction.atomic in Django
+    def save_derived_readings(self):
+        # Even if 'app_func' raised an exception, there may be some readings in
+        # 'derived_df_reading_map' created before the exception. Try to save them
+
+        for df_row in self.derived_df_reading_map.values():
             df = df_row["df"]
             new_df_readings = df_row["new_df_readings"]
-            latest_dfr = self.save_new_df_readings(new_df_readings)
-            if latest_dfr is not None:
+            latest_dfr = find_instance_with_max_attr(new_df_readings)
+            if latest_dfr is not None:  # the same as 'if len(new_df_readings) > 0'
+                DfReading.objects.bulk_create(new_df_readings)
+                self.logger.debug(f"New {len(new_df_readings)} df readings for '{df.name}' were saved")
                 self.update_datafeed(df, latest_dfr)
                 if df.name == STATUS_FIELD_NAME:
                     self.assign_new_cs_st_value(latest_dfr, "status")
                 if df.name == CURR_STATE_FIELD_NAME:
                     self.assign_new_cs_st_value(latest_dfr, "curr_state")
 
-        self.update_cursor_pos()
-        self.update_alarms()
-        self.update_state()
-
-    def save_new_df_readings(self, new_df_readings):
-        latest_dfr = find_instance_with_max_attr(new_df_readings)
-        if latest_dfr is not None:  # the same as 'if len(new_df_readings) > 0'
-            DfReading.objects.bulk_create(new_df_readings)
-            logger.debug("New df readings were saved")
-        return latest_dfr
-
     def update_datafeed(self, df, latest_dfr):
         max_rts = latest_dfr.time
         if set_attr_if_cond(max_rts, ">", df, "last_reading_ts"):
             df.save(update_fields=df.update_fields)
-            # logger.debug(f"Datafeed '{df.name}' was updated")
 
     def assign_new_cs_st_value(self, latest_dfr, name: Literal["status", "curr_state"]):
 
         # when catching up, do not update status or curr_state, leave them frozen
         # it will help to avoid hitting parent assets too often
-        if self.app.is_catching_up:
+        if self.update_map.get("is_catching_up"):
             return
 
         if not set_attr_if_cond(latest_dfr.time, ">", self.app, f"last_{name}_update_ts"):
@@ -138,12 +198,12 @@ class AppFuncExecutor:
         if not set_attr_if_cond(latest_dfr.value, "!=", self.app, name):
             return
         full_name = CURR_STATE_FIELD_NAME if name == "curr_state" else STATUS_FIELD_NAME
-        add_to_alarm_log("INFO", f"{full_name} changed", instance=self.app)
-        logger.debug(f"{full_name} changed -> : {latest_dfr.value}")
+        s = f"{full_name} changed -> : {latest_dfr.value}"
+        add_to_alarm_log("INFO", s, instance=self.app)
+        self.logger.info(s)
 
     def update_catching_up(self):
-        if (is_catching_up := self.update_map.get("is_catching_up")) is None:
-            return
+        is_catching_up = self.update_map.get("is_catching_up")
 
         if not set_attr_if_cond(is_catching_up, "!=", self.app, "is_catching_up"):
             return
@@ -152,25 +212,25 @@ class AppFuncExecutor:
             # in the Django app there will be
             # self.task.interval = self.app.catch_up_interval
             # self.task.save()
-            add_to_alarm_log("INFO", "Catching up started", instance=self.app)
-            logger.debug("Catching up started")
+            s = "Catching up started"
+            add_to_alarm_log("INFO", s, instance=self.app)
+            self.logger.info(s)
         elif not is_catching_up:
             # in the Django app there will be
             # self.task.interval = self.app.invoc_interval
             # self.task.save()
-            add_to_alarm_log("INFO", "Catching up finished", instance=self.app)
-            logger.debug("Catching up finished")
+            s = "Catching up finished"
+            add_to_alarm_log("INFO", s, instance=self.app)
+            self.logger.info(s)
 
     def update_cursor_pos(self):
-        if (ts := self.update_map.get("cursor_ts")) is None:
-            return
+        ts = self.update_map.get("cursor_ts")
         cursor_ts = ts
         if set_attr_if_cond(cursor_ts, ">", self.app, "cursor_ts"):
-            logger.debug(f"Cursor position was updated -> {cursor_ts}")
+            self.logger.debug(f"Cursor position was updated -> {cursor_ts}")
 
     def update_alarms(self):
-        if (alarm_payload := self.update_map.get("alarm_payload")) is None:
-            return
+        alarm_payload = self.update_map.get("alarm_payload")
         for ts, row in alarm_payload.items():
             error_dict = row.get("e")
             upd_error_map, _ = update_alarm_map(self.app, error_dict, ts, "errors", add_to_log=add_to_app_log)
@@ -190,11 +250,12 @@ class AppFuncExecutor:
             return
         set_attr_if_cond(state, "!=", self.app, "state")
 
-        self.app.state = json.dumps(
+        self.app.state_json = json.dumps(
             state
         )  # NOTE: --> added just to check if the state is serializable, remove in the 'monapps'
 
     def run_post_exec_routine(self):
+
         self.update_staleness("status")
         self.update_staleness("curr_state")
         self.update_health()
@@ -205,11 +266,11 @@ class AppFuncExecutor:
 
         # when catching up, do not update status or curr_state, leave them frozen
         # it will help to avoid hitting parent assets too often
-        if self.app.is_catching_up:
+        if self.update_map.get("is_catching_up"):
             return
 
         full_name = CURR_STATE_FIELD_NAME if name == "curr_state" else STATUS_FIELD_NAME
-        has = filter(lambda df: df.name == full_name, self.app.datafeeds.all())
+        has = list(filter(lambda df: df.name == full_name, self.app.datafeeds.all()))
         if not has:
             return
         last_update_ts = getattr(self.app, f"last_{name}_update_ts")
@@ -222,21 +283,23 @@ class AppFuncExecutor:
 
         if set_attr_if_cond(is_stale, "!=", self.app, f"is_{name}_stale"):
             if is_stale:
-                add_to_alarm_log("INFO", f"{full_name} is stale", instance=self.app)
-                logger.debug(f"{full_name} is stale")
+                s = f"{full_name} is stale"
+                add_to_alarm_log("INFO", s, instance=self.app)
+                self.logger.info(s)
             else:
-                add_to_alarm_log("INFO", f"{full_name} is not stale", instance=self.app)
-                logger.debug(f"{full_name} is not stale")
+                s = f"{full_name} is not stale"
+                add_to_alarm_log("INFO", s, instance=self.app)
+                self.logger.info(s)
 
     def eval_health_from_app(self):
-        if (h := self.update_map.get("health")) is not None:
-            # HealthGrades.OK is not used for this type of health
-            self.health_from_app = h if h != HealthGrades.OK else HealthGrades.UNDEFINED
+        h = self.update_map.get("health")
+        # HealthGrades.OK is not used for this type of health
+        self.health_from_app = h if h != HealthGrades.OK else HealthGrades.UNDEFINED
 
     def eval_cs_health(self):
         # health based on the cursor timestamp
         now_ts = create_now_ts_ms()
-        if self.app.is_enabled and not self.app.is_catching_up:
+        if self.app.is_enabled:
             if now_ts - self.app.cursor_ts > self.app.time_health_error:
                 self.cs_health = HealthGrades.ERROR
             else:
@@ -245,7 +308,7 @@ class AppFuncExecutor:
     def update_health(self):
 
         # when catching up, do not update health
-        if self.app.is_catching_up:
+        if self.update_map.get("is_catching_up"):
             return
 
         self.eval_health_from_app()
@@ -254,5 +317,6 @@ class AppFuncExecutor:
         health = max(self.cs_health, self.health_from_app, self.excep_health)
 
         if set_attr_if_cond(health, "!=", self.app, "health"):
-            add_to_alarm_log("INFO", "Health changed", instance=self.app)
-            logger.debug(f"Health changed -> {health}")
+            s = f"Health changed -> {health}"
+            add_to_alarm_log("INFO", s, instance=self.app)
+            self.logger.info(s)

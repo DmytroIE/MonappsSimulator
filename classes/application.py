@@ -45,6 +45,7 @@ class Application:
         self.time_resample = time_resample
         self.settings = app_settings
         self.state = {}  # For retaining the state between calculations
+        self.state_json = "{}"  # NOTE: --> added just to check if the state is serializable, remove in the 'monapps'
         self.errors = {}
         self.warnings = {}
         self.cursor_ts = cursor_ts

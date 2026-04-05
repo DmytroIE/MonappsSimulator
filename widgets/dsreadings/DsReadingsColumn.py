@@ -1,3 +1,4 @@
+import logging
 from PySide6.QtWidgets import (
     QVBoxLayout,
     QApplication,
@@ -27,6 +28,9 @@ from utils.dsr_utils import create_ds_readings, create_nodata_markers
 from utils.ts_utils import create_ts_ms_from_iso_str, create_now_ts_ms
 from utils.sequence_utils import find_max_ts
 from utils.update_utils import set_attr_if_cond
+
+
+logger = logging.getLogger("#dsr_processing")
 
 
 class DsReadingsColumn(QFrame):
@@ -121,9 +125,22 @@ class DsReadingsColumn(QFrame):
             UnusedDsReading.objects.bulk_create(unused_ds_readings)
             InvalidDsReading.objects.bulk_create(invalid_ds_readings)
             NonRocDsReading.objects.bulk_create(non_roc_ds_readings)
+            if len(ds_readings) > 0:
+                logger.debug(f"Created {len(ds_readings)} ds readings for '{self._ds.name}'")
+            if len(unused_ds_readings) > 0:
+                logger.debug(f"Created {len(unused_ds_readings)} unused ds readings for '{self._ds.name}'")
+            if len(invalid_ds_readings) > 0:
+                logger.debug(f"Created {len(invalid_ds_readings)} invalid ds readings for '{self._ds.name}'")
+            if len(non_roc_ds_readings) > 0:
+                logger.debug(f"Created {len(non_roc_ds_readings)} non_roc ds readings for '{self._ds.name}'")
+
             nd_markers, unused_nd_markers = create_nodata_markers(nodata_marker_tss, self._ds, now_ts)
             NoDataMarker.objects.bulk_create(nd_markers)
             UnusedNoDataMarker.objects.bulk_create(unused_nd_markers)
+            if len(nd_markers) > 0:
+                logger.debug(f"Created {len(nd_markers)} nd markers for '{self._ds.name}'")
+            if len(unused_nd_markers) > 0:
+                logger.debug(f"Created {len(unused_nd_markers)} unused nd markers for '{self._ds.name}'")
 
             # update 'ts_to_start_with' and 'last_valid_reading_ts'
             ts_to_start_with = max(find_max_ts(ds_readings), find_max_ts(nd_markers))
@@ -155,7 +172,7 @@ class DsReadingsColumn(QFrame):
                         val = None
                         try:
                             val = row[1]
-                            if self._ds.is_value_interger:
+                            if self._ds.is_value_integer:
                                 pairs[ts] = int(val)
                             else:
                                 pairs[ts] = float(val)
@@ -188,9 +205,22 @@ class DsReadingsColumn(QFrame):
                     UnusedDsReading.objects.bulk_create(unused_ds_readings)
                     InvalidDsReading.objects.bulk_create(invalid_ds_readings)
                     NonRocDsReading.objects.bulk_create(non_roc_ds_readings)
+                    if len(ds_readings) > 0:
+                        logger.debug(f"Created {len(ds_readings)} ds readings for '{self._ds.name}'")
+                    if len(unused_ds_readings) > 0:
+                        logger.debug(f"Created {len(unused_ds_readings)} unused ds readings for '{self._ds.name}'")
+                    if len(invalid_ds_readings) > 0:
+                        logger.debug(f"Created {len(invalid_ds_readings)} invalid ds readings for '{self._ds.name}'")
+                    if len(non_roc_ds_readings) > 0:
+                        logger.debug(f"Created {len(non_roc_ds_readings)} non_roc ds readings for '{self._ds.name}'")
+
                     nd_markers, unused_nd_markers = create_nodata_markers(nodata_marker_tss, self._ds, now_ts)
                     NoDataMarker.objects.bulk_create(nd_markers)
                     UnusedNoDataMarker.objects.bulk_create(unused_nd_markers)
+                    if len(nd_markers) > 0:
+                        logger.debug(f"Created {len(nd_markers)} no data markers for '{self._ds.name}'")
+                    if len(unused_nd_markers) > 0:
+                        logger.debug(f"Created {len(unused_nd_markers)} unused no data markers for '{self._ds.name}'")
 
                     # update 'ts_to_start_with' and 'last_valid_reading_ts'
                     ts_to_start_with = max(find_max_ts(ds_readings), find_max_ts(nd_markers))

@@ -23,11 +23,10 @@ from utils.ts_utils import create_grid, ceil_timestamp, floor_timestamp
 
 matplotlib.use("Qt5Agg")
 
-Y_MAX = 250
-Y_MIN = -50
 DEFAULT_Y_MAX = 150
-DEFAULT_Y_MIN = 50
+DEFAULT_Y_MIN = 0
 DEFAULT_NUM_GRID_COUNTS = 50
+time_units = ["1 sec", "1 min"]
 
 line_colours = cycle(
     [
@@ -64,23 +63,30 @@ class GraphWidget(QWidget):
 
         self._canvas = MplCanvas(self, width=25, height=5, dpi=100)
         self._app = QApplication.instance().app
-        # self._first_grid_count_ts = None
+        graph_settings = QApplication.instance().graph_settings
+        y_min = graph_settings.get("y_min", DEFAULT_Y_MIN)
+        y_max = graph_settings.get("y_max", DEFAULT_Y_MAX)
+        num_grid_counts = graph_settings.get("num_grid_counts", DEFAULT_NUM_GRID_COUNTS)
+        time_unit = graph_settings.get("time_unit", "1 min")
 
         self._sbx_y_min = QSpinBox()
-        self._sbx_y_min.setRange(Y_MIN, Y_MAX)
-        self._sbx_y_min.setValue(DEFAULT_Y_MIN)
+        self._sbx_y_min.setRange(y_min, y_max)
+        self._sbx_y_min.setValue(y_min)
         self._sbx_y_min.setFixedWidth(80)
         self._sbx_y_max = QSpinBox()
-        self._sbx_y_max.setRange(Y_MIN, Y_MAX)
-        self._sbx_y_max.setValue(DEFAULT_Y_MAX)
+        self._sbx_y_max.setRange(y_min, y_max)
+        self._sbx_y_max.setValue(y_max)
         self._sbx_y_max.setFixedWidth(80)
         self._sbx_grid_counts = QSpinBox()
         self._sbx_grid_counts.setRange(5, 200)
-        self._sbx_grid_counts.setValue(DEFAULT_NUM_GRID_COUNTS)
+        self._sbx_grid_counts.setValue(num_grid_counts)
         self._sbx_grid_counts.setFixedWidth(80)
         self._cmb_time_unit = QComboBox()
-        self._cmb_time_unit.addItems(["1 sec", "1 min"])
-        self._cmb_time_unit.setCurrentIndex(1)
+        self._cmb_time_unit.addItems(time_units)
+        curr_index = time_units.index(time_unit)
+        if curr_index != -1:
+            curr_index = 1
+        self._cmb_time_unit.setCurrentIndex(curr_index)
         self._cmb_time_unit.setFixedWidth(80)
 
         self._btn_update_graph = QPushButton("Update graph")
@@ -139,7 +145,7 @@ class GraphWidget(QWidget):
                 dsreadings = list(DsReading.objects.filter(datastream__id=ds.pk).order_by("time"))
 
             if len(dfreadings) > 0:
-                ts = dfreadings[0].time - time_resample
+                ts = dfreadings[0].time  # - time_resample
                 if ts < first_grid_count_ts:
                     # datafeeds can have 'time_resample' < 'app.time_resample', that's why we use floor_timestamp
                     first_grid_count_ts = floor_timestamp(ts, time_resample)
@@ -147,7 +153,7 @@ class GraphWidget(QWidget):
                 if ts > last_grid_count_ts:
                     # datafeeds can have 'time_resample' < 'app.time_resample', that's why we use ceil_timestamp
                     last_grid_count_ts = ceil_timestamp(ts, time_resample)
-            elif len(dsreadings) > 0:  # if there are only datastream readings
+            if len(dsreadings) > 0:  # if there are only datastream readings
                 ts = ceil_timestamp(dsreadings[0].time - time_resample, time_resample)
                 if ts < first_grid_count_ts:
                     first_grid_count_ts = ts
@@ -240,13 +246,13 @@ class GraphWidget(QWidget):
                 dfr_tss.append(t)
                 dfr_vals.append(v)
 
-                if idx + 1 < len(dfreadings) and dfreadings[idx + 1].time - dfr.time > time_resample:
-                    dfr_tss.append(t + time_resample / divider)
+                if idx + 1 < len(dfreadings) and dfreadings[idx + 1].time - dfr.time > df.time_resample:
+                    dfr_tss.append(t + df.time_resample / divider)
                     dfr_vals.append(None)
-                    dfr_null_tss.append(t + time_resample / divider)
+                    dfr_null_tss.append(t + df.time_resample / divider)
                     dfr_null_vals.append(y_min)
 
-                if dfr.restored and v is not None:
+                if dfr.num_dsrs == 0 and df.datastream is not None:
                     dfr_res_tss.append(t)
                     dfr_res_vals.append(v)
 

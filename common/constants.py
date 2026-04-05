@@ -40,8 +40,8 @@ class DataAggTypes(IntEnum):
     AVG = 0  # not available for categorical and discrete data
     SUM = 1  # not available for categorical data
     LAST = 2  # can be used for cat. data that represents a certain state
-    MAX = 3  # not available for categorical data
-    MIN = 4  # not available for categorical data
+    MAX = 3  # not available for nominal data
+    MIN = 4  # not available for nominal data
     MODE = 5  # for categorical data only
 
 
@@ -65,16 +65,20 @@ class DjangoAppSettings(NamedTuple):  # mocking django 'settings' object
     MIN_TIME_RESOL_MS: int
     MIN_TIME_APP_FUNC_INVOC_MS: int
     MAX_TS_MS: int
+    COEFF_RBE_DFRS_FROM_DSRS: int  # to create dfrs from rbe dsrs at approx. the same pace as dfrs from non-rbe dsrs
+    POSTGRES_SMALLINT_MAX: int
 
 
 # MAX_TS_MS = 32503679999999, to be used as something similar to Infinity for timestamps
 MAX_DT = datetime(2999, 12, 31, 23, 59, 59, 999999, tzinfo=timezone.utc)
 settings = DjangoAppSettings(
-    NUM_MAX_DFREADINGS_TO_PROCESS=8,  # deliberately set so low to see how catching up works
+    NUM_MAX_DFREADINGS_TO_PROCESS=16,  # deliberately set so low to see how catching up works
     NUM_MAX_DSREADINGS_TO_PROCESS=6,  # deliberately set so low to see how catching up works
     MIN_TIME_RESOL_MS=1000,
     MIN_TIME_APP_FUNC_INVOC_MS=60000,
     MAX_TS_MS=int(MAX_DT.timestamp() * 1000),
+    COEFF_RBE_DFRS_FROM_DSRS=2,
+    POSTGRES_SMALLINT_MAX=32767,
 )
 
 

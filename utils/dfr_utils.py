@@ -6,7 +6,7 @@ from classes.dsreading import DsReading, NoDataMarker
 from classes.dfreading import DfReading
 
 from common.complex_types import IndDfReadingMap
-from common.constants import DataAggTypes, NotToUseDfrTypes
+from common.constants import DataAggTypes, NotToUseDfrTypes, settings
 from utils.ts_utils import ceil_timestamp, create_grid
 
 
@@ -69,7 +69,12 @@ def resample_ds_readings(
     for rts in df_reading_map:
         agg_value = agg_func(df_reading_map[rts])
         if agg_value is not None:
-            dfr = DfReading(time=rts, value=agg_value, datafeed=df, restored=False)
+            dfr = DfReading(
+                time=rts,
+                value=agg_value,
+                datafeed=df,
+                num_dsrs=max(len(df_reading_map[rts]), settings.POSTGRES_SMALLINT_MAX),
+            )
             df_reading_map[rts] = dfr
             # injection of 'not_to_use' property
             if rts == last_df_reading_rts:
@@ -121,7 +126,9 @@ def resample_and_augment_ds_readings(
             agg_value = agg_func(new_arr)  # if 'new_arr' is empty, 'agg_func' will return None
 
             if agg_value is not None:
-                dfr = DfReading(time=rts, value=agg_value, datafeed=df, restored=False)
+                dfr = DfReading(
+                    time=rts, value=agg_value, datafeed=df, num_dsrs=max(len(new_arr), settings.POSTGRES_SMALLINT_MAX)
+                )
                 df_reading_map[rts] = dfr
             else:  # only nodata marker in 'arr'
                 del df_reading_map[rts]
@@ -130,11 +137,11 @@ def resample_and_augment_ds_readings(
             if not is_nd_period_open:
                 dfr = None
                 if agg_type == DataAggTypes.SUM:
-                    dfr = DfReading(time=rts, value=0, datafeed=df, restored=True)
+                    dfr = DfReading(time=rts, value=0, datafeed=df)
                 elif agg_type == DataAggTypes.LAST:
                     prev_dfr = df_reading_map.get(rts - time_resample, None)
                     if prev_dfr is not None:  # may be None at 'start_rts'
-                        dfr = DfReading(time=rts, value=prev_dfr.value, datafeed=df, restored=True)
+                        dfr = DfReading(time=rts, value=prev_dfr.value, datafeed=df)
                 else:
                     raise ValueError(f"Unknown augmentation type for {agg_type}")
                 if dfr is not None:
@@ -202,7 +209,7 @@ def restore_continuous_avg(
 
     # after this procedure 'clusters' look like
     # [{1723698300000: <31>, 1723698360000:<30>}, {1723698720000: <30>, 1723698780000:<29>}, ...],
-    # i.e. groups of DfReadings, the distance between groups is >= 't_change'
+    # i.e. groups of DfReadings, the distance between groups is >= 'time_change'
     # at least one cluster with one reading will be created
     # the last cluster is always "not closed"
 
@@ -231,7 +238,7 @@ def restore_continuous_avg(
 
                 for rts, val in zip(part_grid, restored_values):
                     if rts not in cl_rtimestamps:
-                        cluster[rts] = DfReading(time=rts, datafeed=df, value=float(val), restored=True)
+                        cluster[rts] = DfReading(time=rts, datafeed=df, value=float(val))
 
     # now process the last cluster
     cluster = clusters[-1]
@@ -254,7 +261,7 @@ def restore_continuous_avg(
                         # and the last 'native' df readings are not used
                         break
                 else:
-                    cluster[rts] = DfReading(time=rts, datafeed=df, value=float(val), restored=True)
+                    cluster[rts] = DfReading(time=rts, datafeed=df, value=float(val))
 
     if length == 1:
         cluster[cl_rtimestamps[-1]].not_to_use = NotToUseDfrTypes.SPLINE_NOT_TO_USE
@@ -299,7 +306,7 @@ def restore_totalizer(
 
     while i < len(sorted_df_readings):
         delta_time = sorted_df_readings[i + 1].time - sorted_df_readings[i].time
-        if i == len(sorted_df_readings) - 2:  # if we got to the penultimate native df reading
+        if i == len(sorted_df_readings) - 2:  # if we reached the penultimate native df reading
             if delta_time > time_resample:
                 if delta_time <= time_change:
                     sorted_df_readings[i + 1].not_to_use = NotToUseDfrTypes.SPLINE_UNCLOSED
@@ -311,10 +318,12 @@ def restore_totalizer(
 
         if delta_time > time_resample and delta_time <= time_change:
             grid = create_grid(sorted_df_readings[i].time, sorted_df_readings[i + 1].time, time_resample)
-            k = (sorted_df_readings[i + 1].value - sorted_df_readings[i].value) / delta_time
-            b = sorted_df_readings[i].value - k * sorted_df_readings[i].time
+
             for rts in grid:
                 if rts > start_rts and rts not in new_df_reading_map:
-                    new_df_reading_map[rts] = DfReading(time=rts, datafeed=df, value=k * rts + b, restored=True)
+                    d1 = sorted_df_readings[i + 1].value - sorted_df_readings[i].value
+                    d2 = sorted_df_readings[i + 1].time - sorted_df_readings[i].time
+                    value = d1 * ((rts - sorted_df_readings[i].time) / d2) + sorted_df_readings[i].value
+                    new_df_reading_map[rts] = DfReading(time=rts, datafeed=df, value=value)
         i += 1
     return new_df_reading_map

@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Iterable
 from classes.object_manager import ObjectManager
 from common.constants import VariableTypes, DataAggTypes
 
@@ -20,6 +20,7 @@ class DataType:
         self.agg_type = agg_type
         self.var_type = var_type
         self.category_map = category_map
+        self.meas_unit_set = set()
 
         # NOTE: works only with agg_type = SUM
         self.is_totalizer = is_totalizer
@@ -39,11 +40,13 @@ class MeasUnit:
     objects = ObjectManager["MeasUnit"]()
     id_counter = 0
 
-    def __init__(self, name: str, symbol: str, data_type: DataType, k=1.0, b=0.0) -> None:
+    def __init__(self, name: str, symbol: str, data_types: Iterable[DataType], k=1.0, b=0.0) -> None:
 
         self.name = name
         self.symbol = symbol
-        self.data_type = data_type
+        self.data_types = set(data_types)  # NOTE: imitation of 'many-to-many' relationship
+        for data_type in self.data_types:
+            data_type.meas_unit_set.add(self)  # NOTE: imitation of 'many-to-many' relationship
         self.k = k
         self.b = b
 

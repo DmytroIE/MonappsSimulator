@@ -45,7 +45,7 @@ class Datastream:
         self.update_fields = set()
 
     @property
-    def is_value_interger(self) -> bool:
+    def is_value_integer(self) -> bool:
         return self.data_type.var_type != VariableTypes.CONTINUOUS
 
     def __repr__(self) -> str:
