@@ -7,8 +7,8 @@ from classes.application import Application
 from classes.datafeed import Datafeed
 from classes.dfreading import DfReading
 from common.complex_types import DerivedDfReadingMap, UpdateMap
-from app_functions.helpers.utils.app_func_utils import get_end_rts, get_df_value_map, get_df_maps_from_app
-from app_functions.helpers.utils.df_utils import get_last_df_reading
+from utils.app_func_utils import get_df_maps_from_app, get_end_rts
+from app_functions.helpers.utils.df_utils import get_df_value_map, get_last_df_reading
 from utils.ts_utils import create_grid
 from app_functions.helpers.classes.app_func_settings_bundle import AppFuncSettingsBundle
 from app_functions.helpers.utils.evaluate_formula import evaluate_formula
@@ -31,19 +31,24 @@ class AppFunction(Generic[T]):
     common tasks such as getting datafeed values, preparing variables, and updating outputs.
     """
 
-    def __init__(self, settings_model: Type[T], logger: logging.Logger):
+    def __init__(self, settings_model: Type[T]):
         self.settings_model: Type[T] = settings_model
-        self.logger = logger
 
-    def __call__(self, app: Application, derived_df_reading_map: DerivedDfReadingMap, update_map: UpdateMap) -> None:
-        self.logger.info("App function starts executing...")
+    def __call__(
+        self,
+        app: Application,
+        derived_df_reading_map: DerivedDfReadingMap,
+        update_map: UpdateMap,
+        logger: logging.Logger,
+    ) -> None:
         self.app = app
+        self.logger = logger
         self.derived_df_reading_map = derived_df_reading_map
         self.update_map = update_map
         self._get_df_maps()
         self._get_catching_up_and_end_rts()
         if self.end_rts <= self.start_rts:  # not all datafeed have readings with ts > cursor_ts
-            self.logger.info("Not all datafeed have readings with ts > cursor_ts. Exiting...")
+            self.logger.debug("Not all datafeed have readings with ts > cursor_ts. Exiting...")
             return
         self.settings_bundle: AppFuncSettingsBundle[T] = AppFuncSettingsBundle(self.app.settings, self.settings_model)
         # For most cases getting data one "time_resample" before the 'start_rts' is enough

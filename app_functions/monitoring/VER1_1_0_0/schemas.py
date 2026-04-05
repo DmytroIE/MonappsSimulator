@@ -1,5 +1,5 @@
-from pydantic import BaseModel, ConfigDict, Field
-from app_functions.helpers.utils.constants import DEFAULT_TOT_RESET_VALUE
+from pydantic import BaseModel, ConfigDict
+
 
 df_schema = {}
 

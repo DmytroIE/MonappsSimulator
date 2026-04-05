@@ -1,4 +1,3 @@
-import logging
 from collections.abc import Iterable
 
 from classes.datastream import Datastream
@@ -14,9 +13,6 @@ from classes.dsreading import (
 from common.constants import DataAggTypes, VariableTypes
 
 
-logger = logging.getLogger("#dsr_utils")
-
-
 def create_ds_readings(
     pairs_ts_value: dict[int, float | int], ds: Datastream, now: int
 ) -> tuple[list[DsReading], list[UnusedDsReading], list[InvalidDsReading], list[NonRocDsReading]]:
@@ -26,15 +22,6 @@ def create_ds_readings(
     non_roc_ds_readings = []
     if ds.data_type.agg_type == DataAggTypes.AVG and ds.data_type.var_type == VariableTypes.CONTINUOUS:
         ds_readings, non_roc_ds_readings = roc_filter_ds_readings(ds_readings, ds)
-
-    if len(ds_readings) > 0:
-        logger.debug(f"Created {len(ds_readings)} ds readings for '{ds.name}'")
-    if len(unused_ds_readings) > 0:
-        logger.debug(f"Created {len(unused_ds_readings)} unused ds readings for '{ds.name}'")
-    if len(invalid_ds_readings) > 0:
-        logger.debug(f"Created {len(invalid_ds_readings)} invalid ds readings for '{ds.name}'")
-    if len(non_roc_ds_readings) > 0:
-        logger.debug(f"Created {len(non_roc_ds_readings)} non_roc ds readings for '{ds.name}'")
 
     return ds_readings, unused_ds_readings, invalid_ds_readings, non_roc_ds_readings
 
@@ -53,11 +40,6 @@ def create_nodata_markers(
             nd_markers.append(NoDataMarker(time=ts, datastream=ds))
         else:
             unused_nd_markers.append(UnusedNoDataMarker(time=ts, datastream=ds))
-
-    if len(nd_markers) > 0:
-        logger.debug(f"Created {len(nd_markers)} nd_markers, ds_id = {ds.pk}")
-    if len(unused_nd_markers) > 0:
-        logger.debug(f"Created {len(unused_nd_markers)} unused nd_markers, ds_id = {ds.pk}")
 
     return nd_markers, unused_nd_markers
 

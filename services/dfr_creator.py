@@ -12,6 +12,7 @@ from common.constants import (
     settings,
 )
 from utils.ts_utils import ceil_timestamp, create_now_ts_ms
+
 from utils.dfr_utils import (
     resample_ds_readings,
     restore_continuous_avg,
@@ -20,7 +21,6 @@ from utils.dfr_utils import (
 )
 from utils.update_utils import set_attr_if_cond
 
-
 logger = logging.getLogger("#dfr_creator")
 
 
@@ -28,14 +28,13 @@ class DfrCreator:
     def __init__(self, app: Application, nat_df: Datafeed) -> None:
         self.app = app
         self.df = nat_df
-        if self.df.datastream is None:
-            raise Exception(f"Datafeed {nat_df.id} has no datastream")
-        self.ds = self.df.datastream
-
         self.is_catching_up = False
 
     def execute(self) -> None:  # will be wrapped with transaction.atomic
-        self.now_ts = create_now_ts_ms()
+
+        if self.df.datastream is None:
+            raise Exception(f"Datafeed {self.df.id} has no datastream")
+        self.ds = self.df.datastream
 
         is_calculated = self.calc_start_rts()
         if not is_calculated:
@@ -109,7 +108,8 @@ class DfrCreator:
     def calc_end_rts(self) -> bool:
         last_dsr = DsReading.objects.filter(datastream__id=self.ds.pk, time__gt=self.start_rts).order_by("time").last()
         if self.ds.is_rbe and self.df.is_aug_on and self.df.aug_policy == AugmentationPolicy.TILL_NOW:
-            self.end_rts = ceil_timestamp(self.now_ts - self.ds.till_now_margin, self.df.time_resample)
+            now_ts = create_now_ts_ms()
+            self.end_rts = ceil_timestamp(now_ts - self.ds.till_now_margin, self.df.time_resample)
             last_ndm = (
                 NoDataMarker.objects.filter(datastream__id=self.ds.pk, time__gt=self.start_rts).order_by("time").last()
             )
@@ -123,21 +123,23 @@ class DfrCreator:
                 return False
             else:
                 self.end_rts = ceil_timestamp(last_dsr.time, self.df.time_resample)
+                if self.end_rts == self.start_rts + self.df.time_resample:
+                    # there are only ds readings in the bin right after the 'start_rts',
+                    # therefore no df readings will be created
+                    return False
         return True
 
     def create_ds_reading_batch(self, batch_size: int) -> bool:
-        try:
-            # get the last ds reading in the batch
-            last_dsr_in_batch = DsReading.objects.filter(datastream__id=self.ds.pk, time__gt=self.start_rts).order_by(
-                "time"
-            )[:batch_size][-1]
-            # NOTE: in Django replace all this construction with simple 'last()'
-        except IndexError:
-            last_dsr_in_batch = None
+
+        # get the initial batch
+        batch_size = max(batch_size, 1)
+        batch = list(
+            DsReading.objects.filter(datastream__id=self.ds.pk, time__gt=self.start_rts).order_by("time")[:batch_size]
+        )
+        last_dsr_in_batch = batch[-1] if batch else None
 
         if last_dsr_in_batch is not None:
-            # add other ds readings from the last bin to the batch
-            # it will improve the performance
+            # there may be other ds readings in the bin
             self.batch_end_rts = ceil_timestamp(last_dsr_in_batch.time, self.df.time_resample)
             if self.ds.is_rbe and self.df.is_aug_on:
                 # for 'rbe' datastreams we rather use the potential number of dfrs
@@ -173,9 +175,6 @@ class DfrCreator:
         is_totalizer = self.df.data_type.is_totalizer
 
         if var_type == VariableTypes.CONTINUOUS and agg_type == DataAggTypes.AVG:
-            if len(self.ds_readings) == 0:
-                logger.info("No ds readings to process")
-                return
             # temperature, pressure etc
             if self.df.is_rest_on:
                 if self.ds.time_change is None:
@@ -365,9 +364,10 @@ class DfrCreator:
                 time__lte=self.batch_end_rts,
             ).order_by("time")
         )
-        # as the sort provided by 'sorted' is stable,
-        # then if both DsReading and NoDataMarker instances have the same timestamps,
-        # then the NoDataMarker instance will be the last after the sorting
+        # The sort provided by 'sorted' is stable, that's why nodata markers are put at the end
+        # of the resulting list 'ds_readings + nodata_markers'. It will help to treat a situation
+        # when both DsReading and NoDataMarker instances have the same timestamps.
+        # In this case, the NoDataMarker will be processed last.
         sorted_dsrs_and_ndms = sorted(self.ds_readings + nodata_markers, key=lambda x: x.time)
         return sorted_dsrs_and_ndms
 

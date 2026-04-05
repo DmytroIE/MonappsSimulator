@@ -2,7 +2,7 @@ import logging
 import random
 import time
 
-from app_functions.helpers.utils.app_func_utils import get_df_maps_from_app
+from utils.app_func_utils import get_df_maps_from_app
 from common.constants import CURR_STATE_FIELD_NAME, STATUS_FIELD_NAME, CurrStateTypes, settings
 from classes.application import Application
 from classes.dfreading import DfReading
@@ -14,15 +14,14 @@ from .schemas import AppFuncSettingsModel as AfsModel
 from common.complex_types import DerivedDfReadingMap, UpdateMap
 from utils.ts_utils import create_dt_from_ts_ms, create_now_ts_ms, floor_timestamp
 
-logger = logging.getLogger("#fdg_VER1_1_0_0")
 
-
-def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, update_map: UpdateMap) -> None:
+def function(
+    app: Application, derived_df_reading_map: DerivedDfReadingMap, update_map: UpdateMap, logger: logging.Logger
+) -> None:
     """
     Used as a generator of different status and current state values for testing the update algorithms.
     Also, sometimes can generate exceptions to test the exception handling in the wrapper.
     """
-    logger.info("App function starts executing...")
 
     # get datafeeds
     [_, derived_df_map] = get_df_maps_from_app(app).maps
@@ -66,7 +65,7 @@ def function(app: Application, derived_df_reading_map: DerivedDfReadingMap, upda
         app_settings = settings_bundle.get_settings(rts)
         prob_exception = app_settings.prob_exception
 
-        logger.debug(f"---> Generating for {create_dt_from_ts_ms(rts)} - {rts}")
+        logger.debug(f">>> Generating for {create_dt_from_ts_ms(rts)} - {rts}")
 
         # imitation of doing something useful that leads to the generation of current state and status values
         curr_state = random.randint(0, 3)

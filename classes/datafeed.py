@@ -60,7 +60,7 @@ class Datafeed:
         return f"Datafeed {self.pk} {self.name}"
 
     @property
-    def is_value_interger(self) -> bool:
+    def is_value_integer(self) -> bool:
         return self.data_type.var_type != VariableTypes.CONTINUOUS
 
     @property

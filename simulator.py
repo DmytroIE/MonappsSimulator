@@ -7,31 +7,9 @@ from PySide6.QtCore import QLocale
 
 from widgets.MainWidget import MainWidget
 from create_app import app, graph_settings
+from logger_settings import build_logging_config
 
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "handlers": {
-        "console": {
-            "level": "DEBUG",
-            "class": "logging.StreamHandler",
-            "formatter": "simple",
-            "filters": ["OnlyLocalModulesFilter"],
-        },
-    },
-    "formatters": {
-        "simple": {"format": "|%(levelname)s|\t|%(asctime)s|\t|%(name)s|\t'%(message)s'"},
-    },
-    "filters": {
-        "OnlyLocalModulesFilter": {
-            "()": "utils.log_filters.OnlyLocalModulesFilter",
-        },
-    },
-    "root": {
-        "handlers": ["console"],
-        "level": "DEBUG",
-    },
-}
+LOGGING = build_logging_config(app_level="DEBUG", root_level="WARNING")
 
 logging.config.dictConfig(LOGGING)
 

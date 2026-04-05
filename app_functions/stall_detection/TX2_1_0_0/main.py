@@ -1,10 +1,9 @@
-import logging
 from functools import partial
 
 from app_functions.helpers.classes.app_function import AppFunction
 
 from common.constants import STATUS_FIELD_NAME, CURR_STATE_FIELD_NAME
-from app_functions.helpers.utils.app_func_utils import add_value_to_df_value_map
+from app_functions.helpers.utils.df_utils import add_value_to_df_value_map
 from utils.alarm_utils import add_to_alarm_payload
 
 from app_functions.helpers.utils.occ_cluster_list import OccurrenceClusterList
@@ -13,13 +12,11 @@ from app_functions.helpers.automatas.status_type1 import Automata as StAutomata
 
 from .schemas import AppState, AppFuncSettingsModel as AfsModel
 
-logger = logging.getLogger("#stall_TX2_1_0_0")
-
 
 class MonitoringAppFunction(AppFunction[AfsModel]):
 
     def __init__(self):
-        super().__init__(AfsModel, logger)
+        super().__init__(AfsModel)
 
     def _prepare_custom_variables(self):
         app_state = AppState(**self.app.state)

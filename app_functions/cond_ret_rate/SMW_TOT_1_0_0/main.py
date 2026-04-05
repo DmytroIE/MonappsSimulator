@@ -1,8 +1,7 @@
-import logging
 from functools import partial
 
 from app_functions.helpers.classes.app_function import AppFunction
-from app_functions.helpers.utils.app_func_utils import add_value_to_df_value_map
+from app_functions.helpers.utils.df_utils import add_value_to_df_value_map
 from common.constants import STATUS_FIELD_NAME, CURR_STATE_FIELD_NAME, CurrStateTypes
 from utils.alarm_utils import add_to_alarm_payload
 
@@ -18,13 +17,11 @@ from app_functions.helpers.utils.df_utils import get_df_map_of_series
 
 from .schemas import AppState, AppFuncSettingsModel as AfsModel
 
-logger = logging.getLogger("#ccr_SMW_TOT_1_0_0")
-
 
 class CrrAppFunction(AppFunction[AfsModel]):
 
     def __init__(self):
-        super().__init__(AfsModel, logger)
+        super().__init__(AfsModel)
 
     def _prepare_before_getting_df_value_map(self):
         first_grid_rts = self.start_rts + self.app.time_resample
@@ -142,7 +139,7 @@ class CrrAppFunction(AppFunction[AfsModel]):
                         )
                         water_diff = steam_generated
                     crr = (steam_generated - water_diff) / steam_generated * 100.0
-                    logger.debug(f"----------> CRR = {crr}")
+                    self.logger.debug(f">>> CRR = {crr}")
                     add_value_to_df_value_map(self.df_value_map, "Cond return rate", self.rts, crr)
 
                     if crr < self.app_settings_valid_from.crr_warning_threshold:

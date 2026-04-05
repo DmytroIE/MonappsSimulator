@@ -4,7 +4,7 @@ import json
 from collections.abc import Iterable
 from typing import Literal
 
-from app_functions.helpers.utils.app_func_utils import get_df_maps_from_app
+from utils.app_func_utils import get_df_maps_from_app
 from classes.application import Application
 from classes.dfreading import DfReading
 from common.constants import DataAggTypes, HealthGrades, STATUS_FIELD_NAME, CURR_STATE_FIELD_NAME, IntegrityError
@@ -35,9 +35,30 @@ class AppFuncExecutor:
         self.excep_health = HealthGrades.UNDEFINED
         self.health_from_app = HealthGrades.UNDEFINED
         self.cs_health = HealthGrades.UNDEFINED  # health based on the cursor timestamp
+        self.logger = self.create_extended_logger()
+
+    def create_extended_logger(self):
+        class ExtendedLogger(logging.Logger):
+            def __init__(self, name, app_id):
+                super().__init__(name)
+                self.app_id = app_id
+
+            def debug(self, msg, *args, **kwargs):
+                logger.debug(f"App {self.app_id}: {msg}", *args, **kwargs)
+
+            def info(self, msg, *args, **kwargs):
+                logger.info(f"App {self.app_id}: {msg}", *args, **kwargs)
+
+            def warning(self, msg, *args, **kwargs):
+                logger.warning(f"App {self.app_id}: {msg}", *args, **kwargs)
+
+            def error(self, msg, *args, **kwargs):
+                logger.error(f"App {self.app_id}: {msg}", *args, **kwargs)
+
+        return ExtendedLogger(logger.name, self.app.id)
 
     def execute(self):
-
+        self.logger.info("-----Start-----")
         # At first, all df readings are to be prepared
         # If there are too many df readings, the function 'prepare_df_readings'
         # will prepare them in batches
@@ -47,8 +68,7 @@ class AppFuncExecutor:
                 self.update_map["is_catching_up"] = True
                 self.update_catching_up()
                 self.app.save(update_fields=self.app.update_fields)
-                logger.debug("App is catching up with df readings")
-                logger.debug("--------------------END--------------------")  # NOTE: --> remove in 'monapps'
+                self.logger.info("Catching up with df readings")
                 return
 
         # when all df readings are prepared it is possible to execute the app function
@@ -65,14 +85,13 @@ class AppFuncExecutor:
                 if creator.check_catching_up():
                     is_at_least_one_df_catching_up = True
             except Exception as e:
-                # extract the file and the line from "traceback" to add to the message
+                self.excep_health = HealthGrades.ERROR
                 tb_list = traceback.extract_tb(e.__traceback__)
                 original_frame = tb_list[-1]
                 file = original_frame.filename
                 line = original_frame.lineno
-                s = f"Error while creating dfrs for {nat_df.pk} {nat_df.name}, file: {file}, line: {line}"
-                add_to_alarm_log("ERROR", s, instance=self.app)
-                logger.error(s)
+                add_to_alarm_log("ERROR", f"Error while creating dfrs for {nat_df.pk} {nat_df.name}", instance=self.app)
+                self.logger.error(f"Error while creating dfrs for {nat_df.pk} {nat_df.name}, file: {file}, line: {line}")
 
         return is_at_least_one_df_catching_up
 
@@ -80,9 +99,7 @@ class AppFuncExecutor:
     def run_app_func(self):
         # In Django app, there will be
         # self.app = Application.objects.select_for_update().get(pk=self.app.pk)
-        # self.parent = Asset.objects.select_for_update().get(pk=self.app.parent.pk)
         # self.task = PeriodicTask.objects.select_for_update().get(pk=self.task.pk)
-        # and locking all datafeed objects related to the app with select_for_update() as well
         if self.app.is_enabled:
             self.run_exec_routine()
             try:
@@ -90,7 +107,7 @@ class AppFuncExecutor:
             except IntegrityError:
                 s = "An attempt to rewrite existing df readings detected"
                 add_to_alarm_log("ERROR", s, instance=self.app)
-                logger.error(s)
+                self.logger.error(s)
                 self.excep_health = HealthGrades.ERROR
                 self.update_map["is_catching_up"] = False
             else:
@@ -100,14 +117,13 @@ class AppFuncExecutor:
             self.update_catching_up()
 
         self.run_post_exec_routine()
-        logger.debug("--------------------END--------------------")  # NOTE: --> remove in the 'monapps'
 
     def check_df_schema(self):
         df_map = get_df_maps_from_app(self.app)
         for df_name, schema in self.df_schema.items():
             if df_name.find("<str>") != -1 or df_name.find("<int>") != -1:
                 df_name_prefix = df_name.split("<")[0]
-                has = filter(lambda name: name.startswith(df_name_prefix), df_map.keys())
+                has = list(filter(lambda name: name.startswith(df_name_prefix), df_map.keys()))
                 if not has:
                     raise Exception(f"No datafeed with prefix '{df_name_prefix}' found")
                 # if there are several datafeeds with the same prefix, it will be checked later in the app function
@@ -127,7 +143,6 @@ class AppFuncExecutor:
                     raise Exception(f"Datafeed '{df_name}' should {"" if is_totalizer else "not"} be a totalizer")
 
     def run_exec_routine(self):
-        logger.debug("Starting app function")
 
         self.app.state = json.loads(
             self.app.state_json
@@ -135,7 +150,7 @@ class AppFuncExecutor:
 
         try:
             self.check_df_schema()
-            self.app_func(self.app, self.derived_df_reading_map, self.update_map)
+            self.app_func(self.app, self.derived_df_reading_map, self.update_map, self.logger)
         except Exception as e:
             self.excep_health = HealthGrades.ERROR
             self.update_map["is_catching_up"] = False
@@ -144,9 +159,9 @@ class AppFuncExecutor:
             file = original_frame.filename
             line = original_frame.lineno
             add_to_alarm_log("ERROR", f"Error while executing app function, {e}", instance=self.app)
-            logger.error(f"Error happened while executing app function, {e}, file: {file}, line: {line}")
+            self.logger.error(f"Error happened while executing app function, {e}, file: {file}, line: {line}")
         else:
-            logger.debug("App function executed")
+            self.logger.info("App function executed")
 
     # the call of this function is to be wrapped in transaction.atomic in Django
     def save_derived_readings(self):
@@ -159,7 +174,7 @@ class AppFuncExecutor:
             latest_dfr = find_instance_with_max_attr(new_df_readings)
             if latest_dfr is not None:  # the same as 'if len(new_df_readings) > 0'
                 DfReading.objects.bulk_create(new_df_readings)
-                logger.debug(f"New {len(new_df_readings)} df readings for '{df.name}' were saved")
+                self.logger.debug(f"New {len(new_df_readings)} df readings for '{df.name}' were saved")
                 self.update_datafeed(df, latest_dfr)
                 if df.name == STATUS_FIELD_NAME:
                     self.assign_new_cs_st_value(latest_dfr, "status")
@@ -170,7 +185,6 @@ class AppFuncExecutor:
         max_rts = latest_dfr.time
         if set_attr_if_cond(max_rts, ">", df, "last_reading_ts"):
             df.save(update_fields=df.update_fields)
-            # logger.debug(f"Datafeed '{df.name}' was updated")
 
     def assign_new_cs_st_value(self, latest_dfr, name: Literal["status", "curr_state"]):
 
@@ -186,7 +200,7 @@ class AppFuncExecutor:
         full_name = CURR_STATE_FIELD_NAME if name == "curr_state" else STATUS_FIELD_NAME
         s = f"{full_name} changed -> : {latest_dfr.value}"
         add_to_alarm_log("INFO", s, instance=self.app)
-        logger.debug(s)
+        self.logger.info(s)
 
     def update_catching_up(self):
         is_catching_up = self.update_map.get("is_catching_up")
@@ -200,20 +214,20 @@ class AppFuncExecutor:
             # self.task.save()
             s = "Catching up started"
             add_to_alarm_log("INFO", s, instance=self.app)
-            logger.debug(s)
+            self.logger.info(s)
         elif not is_catching_up:
             # in the Django app there will be
             # self.task.interval = self.app.invoc_interval
             # self.task.save()
             s = "Catching up finished"
             add_to_alarm_log("INFO", s, instance=self.app)
-            logger.debug(s)
+            self.logger.info(s)
 
     def update_cursor_pos(self):
         ts = self.update_map.get("cursor_ts")
         cursor_ts = ts
         if set_attr_if_cond(cursor_ts, ">", self.app, "cursor_ts"):
-            logger.debug(f"Cursor position was updated -> {cursor_ts}")
+            self.logger.debug(f"Cursor position was updated -> {cursor_ts}")
 
     def update_alarms(self):
         alarm_payload = self.update_map.get("alarm_payload")
@@ -241,7 +255,7 @@ class AppFuncExecutor:
         )  # NOTE: --> added just to check if the state is serializable, remove in the 'monapps'
 
     def run_post_exec_routine(self):
-        logger.debug("Update other parameters")
+
         self.update_staleness("status")
         self.update_staleness("curr_state")
         self.update_health()
@@ -256,7 +270,7 @@ class AppFuncExecutor:
             return
 
         full_name = CURR_STATE_FIELD_NAME if name == "curr_state" else STATUS_FIELD_NAME
-        has = filter(lambda df: df.name == full_name, self.app.datafeeds.all())
+        has = list(filter(lambda df: df.name == full_name, self.app.datafeeds.all()))
         if not has:
             return
         last_update_ts = getattr(self.app, f"last_{name}_update_ts")
@@ -271,11 +285,11 @@ class AppFuncExecutor:
             if is_stale:
                 s = f"{full_name} is stale"
                 add_to_alarm_log("INFO", s, instance=self.app)
-                logger.debug(s)
+                self.logger.info(s)
             else:
                 s = f"{full_name} is not stale"
                 add_to_alarm_log("INFO", s, instance=self.app)
-                logger.debug(s)
+                self.logger.info(s)
 
     def eval_health_from_app(self):
         h = self.update_map.get("health")
@@ -305,4 +319,4 @@ class AppFuncExecutor:
         if set_attr_if_cond(health, "!=", self.app, "health"):
             s = f"Health changed -> {health}"
             add_to_alarm_log("INFO", s, instance=self.app)
-            logger.debug(s)
+            self.logger.info(s)

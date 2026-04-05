@@ -1,3 +1,4 @@
+import logging
 from typing import NotRequired, TypedDict, Literal, Any, Callable
 from classes.application import Application
 from classes.dfreading import DfReading
@@ -40,7 +41,7 @@ class DerivedDfReadingRow(TypedDict):
 
 type DerivedDfReadingMap = dict[str, DerivedDfReadingRow]
 
-type AppFunction = Callable[[Application, DerivedDfReadingMap, UpdateMap], None]
+type AppFunction = Callable[[Application, DerivedDfReadingMap, UpdateMap, logging.Logger], None]
 
 
 class AppFuncBundle(TypedDict):
