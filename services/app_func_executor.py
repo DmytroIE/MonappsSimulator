@@ -20,10 +20,24 @@ from services.app_log import add_to_app_log
 logger = logging.getLogger("#appf_exec")
 
 
+class _AppLoggerAdapter(logging.LoggerAdapter):
+    def process(self, msg, kwargs):
+        app_id = self.extra.get("app_id") if self.extra is not None else "unknown"
+        return f"application {app_id}: {msg}", kwargs
+
+
+def create_app_logger(app_id: int) -> logging.LoggerAdapter:
+    return _AppLoggerAdapter(logger, {"app_id": app_id})
+
+
 class AppFuncExecutor:
     def __init__(self, app: Application, app_func_bundle: AppFuncBundle):
         self.app = app
+        self.logger = create_app_logger(app.pk)
         self.app_func = app_func_bundle["function"]
+        if self.app_func is None:
+            self.logger.error(f"No app function for '{app.type.func_name}' and '{app.func_version}'")
+            return
         self.df_schema = app_func_bundle["df_schema"]
         self.update_map: UpdateMap = {
             "health": HealthGrades.OK,
@@ -35,27 +49,6 @@ class AppFuncExecutor:
         self.excep_health = HealthGrades.UNDEFINED
         self.health_from_app = HealthGrades.UNDEFINED
         self.cs_health = HealthGrades.UNDEFINED  # health based on the cursor timestamp
-        self.logger = self.create_extended_logger()
-
-    def create_extended_logger(self):
-        class ExtendedLogger(logging.Logger):
-            def __init__(self, name, app_id):
-                super().__init__(name)
-                self.app_id = app_id
-
-            def debug(self, msg, *args, **kwargs):
-                logger.debug(f"App {self.app_id}: {msg}", *args, **kwargs)
-
-            def info(self, msg, *args, **kwargs):
-                logger.info(f"App {self.app_id}: {msg}", *args, **kwargs)
-
-            def warning(self, msg, *args, **kwargs):
-                logger.warning(f"App {self.app_id}: {msg}", *args, **kwargs)
-
-            def error(self, msg, *args, **kwargs):
-                logger.error(f"App {self.app_id}: {msg}", *args, **kwargs)
-
-        return ExtendedLogger(logger.name, self.app.id)
 
     def execute(self):
         self.logger.info("-----Start-----")

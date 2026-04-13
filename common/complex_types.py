@@ -41,7 +41,10 @@ class DerivedDfReadingRow(TypedDict):
 
 type DerivedDfReadingMap = dict[str, DerivedDfReadingRow]
 
-type AppFunction = Callable[[Application, DerivedDfReadingMap, UpdateMap, logging.Logger], None]
+type AppFunction = Callable[
+    [Application, DerivedDfReadingMap, UpdateMap, logging.Logger | logging.LoggerAdapter],
+    None,
+]
 
 
 class AppFuncBundle(TypedDict):
