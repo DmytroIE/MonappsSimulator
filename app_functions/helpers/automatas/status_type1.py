@@ -62,8 +62,10 @@ class InternalState(BaseModel):
 
 class Automata:
     """
-    This type is based on durations of such types of current state - UNDEFINED, OK, WARNING.
-    The number of occurrences of current state is not used.
+    A finite state automata that manages status transitions based on occurrence conditions.
+
+    This automata tracks three possible states (UNDEFINED, OK, WARNING) and transitions between them
+    based on matching conditions evaluated against a cluster of current state occurrences. 
     """
 
     def __init__(

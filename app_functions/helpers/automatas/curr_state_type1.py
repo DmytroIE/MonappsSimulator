@@ -24,8 +24,26 @@ class InternalState(BaseModel):
 
 class Automata:
     """
-    This class is used to implement a finite automata that assigns current state to WARNING based on a single condition.
-    Also this automata assumes having the 'Off' state."""
+    This class implements a finite state machine that shapes the current state value by considering
+    the values of multiple flags - error, off, ok, and warning. The flags should be provided by
+    the calling application that uses an instance of this class to determine the current state.
+
+    It can have a few internal states: OFF, UNDEFINED, OK, WARNING, ERROR. Internal states are not
+    100% equal to the current state values; they are rather aimed at organizing the internal logic.
+    For instance, the ERROR internal state represents an error in input data and corresponds with
+    the UNDEFINED current state value.
+
+    The automata transitions between states based on counter thresholds for error, off, ok, and warning conditions.
+    Each state can trigger entry actions, evaluate transitions, and execute permanent actions.
+
+    Key features:
+    - Multiple independent counters (error, off, ok, warning) track condition occurrences
+    - State transitions occur when counter thresholds are exceeded
+    - Supports alarm payload generation for error and warning states
+    - Maintains internal state history for persistence and recovery
+    - Uses a while loop and the "again" flag to handle multiple transitions in a single execution cycle
+    - Provides methods to retrieve the current state, health status, and internal state as a dictionary
+    """
 
     def __init__(
         self,

@@ -37,4 +37,4 @@ def calc_bdn_amount(temp: float, valve_open: bool, kv: float, time: int, backpre
     bdn_pres = get_pres_from_sat_temp(temp)
     density = get_water_density_from_sat_temp(temp)
     # backpres_coef is a coefficient that accounts for backpressure in the blowdown line
-    return sqrt(bdn_pres * backpres_coef) * density * kv * time / 3600000 * (1 if valve_open else 0)
+    return sqrt(1000 / density * bdn_pres * backpres_coef) * density * kv * time / 3600000 * (1 if valve_open else 0)
